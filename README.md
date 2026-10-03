@@ -22,8 +22,9 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 
 | Step | Goal | Status |
 |---|---|---|
-| 0 | BepInEx loads our plugin in Valheim | built, needs in-game check |
-| 1 | **Link**: Fabric mod ⇄ Valheim plugin over localhost; walking in MC moves the Valheim player; first-person camera | |
+| 0 | BepInEx loads our plugin in Valheim | ✅ works |
+| 1a | **Link**: Fabric mod ⇄ Valheim plugin over localhost; walking in MC moves the Valheim player; first-person camera | built, needs in-game check |
+| 1b | **Input**: play through the Valheim window, keys/mouse forwarded to a hidden Minecraft | |
 | 2 | **Blocks**: blocks placed/broken in MC appear in Valheim | |
 | 3 | **Ground**: Valheim terrain scanned into MC collision, so you walk Valheim hills in MC physics; digging | |
 | 4 | **Combat**: MC hits damage Valheim creatures; TNT craters | |
@@ -34,7 +35,7 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 | Path | What |
 |---|---|
 | `valheim/` | BepInEx plugin (C#, netstandard2.1) |
-| `fabric/` | Minecraft 26.2 Fabric mod (Java), from step 1 |
+| `fabric/` | Minecraft 26.2 Fabric mod (Java), client-only |
 
 ## Setup (Linux, native Valheim)
 
@@ -50,5 +51,19 @@ so blocks become real objects in its world and get its lighting, shadows and fog
    ```
 4. Launch Valheim and load a world. You should see **"Valcraft loaded"** in the middle of the screen, and
    `Valcraft 0.1.0 loaded` in `BepInEx/LogOutput.log`.
+
+5. Build the Minecraft mod and copy it into the Prism `26.2` instance:
+   ```
+   cd fabric && ./gradlew deploy
+   ```
+
+### Trying step 1a
+Start Valheim and load a world, then start Minecraft (any world, a superflat creative world is easiest)
+and put the two windows side by side. Minecraft chat says `[Valcraft] Linked to Valheim`, and
+Valheim switches to first person and follows your Minecraft movement. **F8** in Valheim toggles
+following on and off.
+
+For now Valheim keeps you on its own ground and only copies your jump height, because Minecraft
+doesn't know Valheim's terrain yet (step 3).
 
 Override the game path with `dotnet build -c Release -p:GameDir=/path/to/Valheim`.

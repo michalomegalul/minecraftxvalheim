@@ -18,6 +18,9 @@
     <Reference Include="assembly_utils" HintPath="$(Managed)/assembly_utils.dll" Private="false" />
     <Reference Include="UnityEngine" HintPath="$(Managed)/UnityEngine.dll" Private="false" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(Managed)/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(Managed)/UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(Managed)/UnityEngine.InputLegacyModule.dll" Private="false" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(Managed)/Newtonsoft.Json.dll" Private="false" />
   </ItemGroup>
 
   <!-- Copy the built plugin straight into the game's BepInEx/plugins folder. -->
