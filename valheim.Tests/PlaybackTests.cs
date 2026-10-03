@@ -91,6 +91,20 @@ public class PlaybackTests
     }
 
     [Fact]
+    public void SixtyFpsFrameAligned()
+    {
+        // Minecraft capped at 60 FPS while linked: each tick goes out on the next frame boundary.
+        double frame = 1 / 60.0;
+        var (starved, speed) = Simulate(Stream(0.05, 30, tick =>
+        {
+            double at = 0.1 + (tick - 1000) * 0.05;
+            return Math.Ceiling(at / frame) * frame - at;
+        }), 30);
+        Assert.Equal(0, starved);
+        Assert.True(speed < 0.10, $"speed deviation {speed:P1}");
+    }
+
+    [Fact]
     public void RandomNetworkJitter()
     {
         var rng = new Random(7);
