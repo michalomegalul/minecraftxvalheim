@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>Valcraft</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <GameDir Condition="'$(GameDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/Valheim</GameDir>
+    <Managed>$(GameDir)/valheim_Data/Managed</Managed>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Unity ships its own facade assemblies; the version mismatches are harmless. -->
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx" HintPath="$(GameDir)/BepInEx/core/BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(GameDir)/BepInEx/core/0Harmony.dll" Private="false" />
+    <Reference Include="assembly_valheim" HintPath="$(Managed)/assembly_valheim.dll" Private="false" />
+    <Reference Include="assembly_utils" HintPath="$(Managed)/assembly_utils.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(Managed)/UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(Managed)/UnityEngine.CoreModule.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- Copy the built plugin straight into the game's BepInEx/plugins folder. -->
+  <Target Name="Deploy" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)/BepInEx/plugins/Valcraft" />
+  </Target>
+</Project>
