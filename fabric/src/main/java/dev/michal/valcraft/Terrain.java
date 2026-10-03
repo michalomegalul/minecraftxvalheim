@@ -37,7 +37,11 @@ final class Terrain {
 	/** Cells above the surface that we clear (removes barriers left by older versions). */
 	static final int CLEAR_HEIGHT = 12;
 	private static final int CHUNKS_PER_TICK = 2;
-	private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
+	// UPDATE_SKIP_ON_PLACE keeps our water from scheduling a flow tick: it stays still (and doesn't
+	// pour off the edge of the built area into the void) until something next to it changes.
+	private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SKIP_ON_PLACE;
+	/** Valheim's sea level in Minecraft y (sent with each chunk); everything below it is water. */
+	static volatile double seaLevel = Double.NaN;
 
 	private final ConcurrentLinkedQueue<JsonObject> incoming = new ConcurrentLinkedQueue<>();
 	private final ArrayDeque<JsonObject> waiting = new ArrayDeque<>(); // chunk not loaded yet
@@ -74,6 +78,11 @@ final class Terrain {
 	/** The surface we built for this column, or null if it isn't Valheim ground. */
 	Double surfaceAt(int x, int z) {
 		return surfaces.get(BlockPos.asLong(x, 0, z));
+	}
+
+	/** Water we placed for Valheim's sea (Valheim draws its own ocean, so don't mirror it back). */
+	static boolean isSea(BlockState state, BlockPos pos) {
+		return !Double.isNaN(seaLevel) && pos.getY() < seaLevel && state.is(Blocks.WATER);
 	}
 
 	static boolean isGround(BlockState state) {
@@ -161,6 +170,9 @@ final class Terrain {
 
 	private void write(ServerLevel level, JsonObject chunk, int cx, int cz) {
 		JsonArray top = chunk.getAsJsonArray("top");
+		if (chunk.has("sea")) seaLevel = chunk.get("sea").getAsDouble();
+		int sea = Double.isNaN(seaLevel) ? Integer.MIN_VALUE : (int) Math.round(seaLevel);
+		BlockState water = Blocks.WATER.defaultBlockState();
 
 		BlockState ground = Blocks.DIRT.defaultBlockState();
 		BlockState deep = Blocks.STONE.defaultBlockState();
@@ -183,7 +195,7 @@ final class Terrain {
 				int n = (int) Math.floor(surface);
 				int layers = (int) Math.round((surface - n) * 8) + 1; // collision = (layers - 1) / 8
 
-				for (int y = n - DEPTH; y <= n + CLEAR_HEIGHT; y++) {
+				for (int y = n - DEPTH; y <= Math.max(n + CLEAR_HEIGHT, sea - 1); y++) {
 					if (y < minY || y > maxY) continue;
 					pos.set(x, y, z);
 					BlockState state;
@@ -193,6 +205,7 @@ final class Terrain {
 					else if (y == n) state = layers >= 9 ? ground : layers <= 1 ? air
 							: Blocks.SNOW.defaultBlockState().setValue(SnowLayerBlock.LAYERS, layers);
 					else state = air;
+					if (state.isAir() && y < sea) state = water; // Valheim's sea and rivers
 					level.setBlock(pos, state, FLAGS);
 				}
 			}

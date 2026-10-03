@@ -192,7 +192,11 @@ namespace Valcraft
             var flat = new JArray();
             foreach (int v in boxes) flat.Add(v);
             var msg = new JObject { ["t"] = "chunk", ["cx"] = cx, ["cz"] = cz, ["boxes"] = flat };
-            if (withTerrain) msg["top"] = top;
+            if (withTerrain)
+            {
+                msg["top"] = top;
+                msg["sea"] = ZoneSystem.instance.m_waterLevel - Mapping.YOffset;
+            }
             link.Send(msg);
             Sent.Add(key);
             BoxesLastChunk = boxes.Count / 5;

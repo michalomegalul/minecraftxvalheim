@@ -101,7 +101,12 @@ How the world gets into Minecraft: Valheim scans a 112 m square around you in 16
   stairs, glass, torches, water and lava look like Minecraft but get Valheim's light and shadows.
 - **Sneaking** in Minecraft crouches in Valheim: stealth, quieter footsteps, Sneak skill.
 
-Known limits: no water yet; changes further than one chunk away are only picked up when you get
+- **Water**: below Valheim's sea level (which is also its rivers and lakes) columns are filled
+  with Minecraft water up to the sea surface, so you swim. It's placed without a flow tick, so it
+  stays still instead of pouring off the edge of the built area. Valheim draws its own ocean, so
+  this water isn't mirrored back.
+
+Known limits: changes further than one chunk away are only picked up when you get
 close.
 
 Override the game path with `dotnet build -c Release -p:GameDir=/path/to/Valheim`.

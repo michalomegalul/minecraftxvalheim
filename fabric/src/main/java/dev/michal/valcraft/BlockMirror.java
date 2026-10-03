@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -137,7 +136,7 @@ final class BlockMirror {
 		BlockPos min = SectionPos.of(sx, sy, sz).origin();
 		for (BlockPos pos : BlockPos.betweenClosed(min, min.offset(15, 15, 15))) {
 			BlockState state = level.getBlockState(pos);
-			if (state.isAir() || isValheimGround(state, pos)) continue;
+			if (state.isAir() || isValheimGround(state, pos) || Terrain.isSea(state, pos)) continue;
 			FluidState fluid = state.getFluidState();
 			if (!fluid.isEmpty()) fluids.tesselate(level, pos, fluidOut, state, fluid);
 			if (state.getRenderShape() == RenderShape.MODEL) {
