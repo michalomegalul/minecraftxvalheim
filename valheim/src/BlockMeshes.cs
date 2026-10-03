@@ -63,14 +63,16 @@ namespace Valcraft
             Sections.Remove(key);
 
             var layers = (JObject)msg["layers"];
-            if (layers == null || !layers.HasValues) return;
+            var lights = (JArray)msg["lights"];
+            if ((layers == null || !layers.HasValues) && (lights == null || lights.Count == 0)) return;
 
             if (_root == null) _root = new GameObject("Valcraft blocks");
             var v = Mapping.ToValheim(sx * 16, sy * 16, sz * 16);
             var section = new GameObject($"section {sx},{sy},{sz}");
             section.transform.SetParent(_root.transform, false);
             section.transform.position = new Vector3((float)v.x, (float)v.y, (float)v.z);
-            foreach (var layer in layers.Properties())
+            AddLights(section, lights);
+            foreach (var layer in layers?.Properties() ?? Enumerable.Empty<JProperty>())
             {
                 var mesh = BuildMesh((JObject)layer.Value);
                 if (mesh == null) continue;
@@ -83,6 +85,34 @@ namespace Valcraft
                 r.receiveShadows = true;
             }
             Sections[key] = section;
+        }
+
+        private const int MaxLightsPerSection = 8;
+
+        /// <summary>
+        /// Light-emitting blocks (torches, lava, glowstone) light Valheim too. Minecraft merges them
+        /// per 4x4x4 cell; the brightest few per section become warm point lights.
+        /// </summary>
+        private static void AddLights(GameObject section, JArray lights)
+        {
+            if (lights == null) return;
+            var list = new List<(Vector3 pos, float level)>();
+            for (int i = 0; i + 3 < lights.Count; i += 4)
+                list.Add((new Vector3((float)lights[i], (float)lights[i + 1], -(float)lights[i + 2]), (float)lights[i + 3]));
+            foreach (var (pos, level) in list.OrderByDescending(l => l.level).Take(MaxLightsPerSection))
+            {
+                var go = new GameObject("light");
+                go.transform.SetParent(section.transform, false);
+                go.transform.localPosition = pos;
+                var light = go.AddComponent<Light>();
+                light.type = LightType.Point;
+                // Minecraft light reaches level-1 blocks; fall off a bit sooner so it doesn't wash out.
+                light.range = Mathf.Max(2f, level * 0.8f);
+                light.intensity = 0.6f + level / 15f;
+                light.color = new Color(1f, 0.72f, 0.42f);
+                light.shadows = LightShadows.None;
+                light.renderMode = LightRenderMode.ForcePixel;
+            }
         }
 
         /// <summary>Quads in section-local Minecraft coordinates -> a Unity mesh.</summary>

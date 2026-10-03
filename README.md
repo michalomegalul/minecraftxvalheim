@@ -102,6 +102,8 @@ How the world gets into Minecraft: Valheim scans a 112 m square around you in 16
   section with its own block and fluid renderers into quads, and sends them with its block atlas
   (exported from the GPU once). Valheim builds meshes from them using its own materials, so
   stairs, glass, torches, water and lava look like Minecraft but get Valheim's light and shadows.
+  Light-emitting blocks (torches, lava, glowstone, lanterns) also light Valheim: Minecraft merges
+  them per 4×4×4 cell and Valheim adds a warm point light for the brightest few per section.
 - **Minecraft's hand and GUI** are drawn over Valheim (like SkyCraft's hand/GUI layers). While
   linked, Minecraft skips drawing its world and clears to transparent, so its frame is just the
   hand, hotbar, hearts, crosshair and any open screen. Each frame is read back from the GPU into

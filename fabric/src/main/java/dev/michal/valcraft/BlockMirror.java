@@ -133,10 +133,22 @@ final class BlockMirror {
 		var modelSet = mc.getModelManager().getBlockStateModelSet();
 		FluidRenderer.Output fluidOut = layer -> layers.computeIfAbsent(layer, l -> new Quads());
 
+		// Light sources (torches, lava, glowstone...), merged per 4x4x4 cell: [sumX, sumY, sumZ, count, maxLevel].
+		Map<Integer, float[]> lights = new java.util.HashMap<>();
 		BlockPos min = SectionPos.of(sx, sy, sz).origin();
 		for (BlockPos pos : BlockPos.betweenClosed(min, min.offset(15, 15, 15))) {
 			BlockState state = level.getBlockState(pos);
 			if (state.isAir() || isValheimGround(state, pos) || Terrain.isSea(state, pos)) continue;
+			int emission = state.getLightEmission();
+			if (emission > 0) {
+				int rx = pos.getX() - min.getX(), ry = pos.getY() - min.getY(), rz = pos.getZ() - min.getZ();
+				float[] l = lights.computeIfAbsent((rx >> 2) | (ry >> 2) << 2 | (rz >> 2) << 4, k -> new float[5]);
+				l[0] += rx + 0.5f;
+				l[1] += ry + 0.5f;
+				l[2] += rz + 0.5f;
+				l[3]++;
+				l[4] = Math.max(l[4], emission);
+			}
 			FluidState fluid = state.getFluidState();
 			if (!fluid.isEmpty()) fluids.tesselate(level, pos, fluidOut, state, fluid);
 			if (state.getRenderShape() == RenderShape.MODEL) {
@@ -164,6 +176,14 @@ final class BlockMirror {
 			if (q.count > 0) out.add(layer.name().toLowerCase(), q.toJson());
 		});
 		msg.add("layers", out);
+		JsonArray lightArr = new JsonArray();
+		for (float[] l : lights.values()) {
+			lightArr.add(l[0] / l[3]);
+			lightArr.add(l[1] / l[3]);
+			lightArr.add(l[2] / l[3]);
+			lightArr.add(l[4]);
+		}
+		msg.add("lights", lightArr);
 		return msg;
 	}
 
