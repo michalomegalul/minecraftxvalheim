@@ -99,11 +99,15 @@ public class ValcraftClient implements ClientModInitializer {
 			// A new link starts from scratch: Valheim resends terrain and syncs again.
 			frozen = false;
 			terrain.clear();
+			CollisionField.clear();
 			say(mc, up ? "Linked to Valheim" : "Valheim link lost");
 		} else if (type.equals("input")) {
 			if (!frozen) input.apply(mc, msg);
 		} else if (type.equals("chunk")) {
-			terrain.enqueue(msg);
+			if (msg.has("boxes")) {
+				CollisionField.put(msg.get("cx").getAsInt(), msg.get("cz").getAsInt(), msg.getAsJsonArray("boxes"));
+			}
+			if (msg.has("top")) terrain.enqueue(msg);
 		} else if (type.equals("teleport")) {
 			teleport(mc, msg);
 		} else if (type.equals("hello")) {

@@ -77,13 +77,18 @@ first person. Play in the Valheim window:
 
 While a Valheim menu is open, nothing is forwarded and all Minecraft keys are released.
 
-How the world gets into Minecraft: Valheim scans a 112 m square around you, one 16×16 chunk per
-frame. For every 1 m column it sends the ground height, and which 1 m cells up to 12 m above it hold
-something solid (rocks, trees, buildings). Minecraft fills the ground with blocks topped by a snow
-layer whose height matches Valheim's to 1/8 block (so slopes walk smoothly), and puts barrier blocks
-in the solid cells. Coordinates are 1:1: Minecraft (x, y, z) = Valheim (x, y − 40, −z).
+How the world gets into Minecraft: Valheim scans a 112 m square around you in 16×16 chunks
+(nearest first, 4 ms per frame). Coordinates are 1:1: Minecraft (x, y, z) = Valheim (x, y − 40, −z).
 
-Known limits: thin walls become 1–2 blocks thick, doors are solid, no water yet, and changes to the
-Valheim world after a chunk was scanned (felled trees, new buildings) aren't picked up yet.
+- **Ground** becomes real Minecraft blocks, topped with a snow layer whose height matches Valheim's
+  to 1/8 block, so slopes walk smoothly. Real blocks, so Minecraft tools and TNT can dig them.
+- **Objects** (rocks, trees, buildings, stairs) become 1/8-block collision boxes, like SkyCraft's
+  CollisionField: a quick 1 m check per cell, then 8×8 vertical ray pairs through occupied
+  columns. A mixin feeds them into Minecraft's collision for players, so walls keep their real
+  thickness and stairs are small steps. The 3×3 chunks around you are rescanned every 3 s, so
+  opened doors and felled trees update.
+
+Known limits: no water yet; changes further than one chunk away are only picked up when you get
+close.
 
 Override the game path with `dotnet build -c Release -p:GameDir=/path/to/Valheim`.

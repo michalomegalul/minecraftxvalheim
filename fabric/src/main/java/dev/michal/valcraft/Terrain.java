@@ -10,27 +10,24 @@ import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayDeque;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Builds Valheim's terrain and objects around the player into the Minecraft world, as blocks.
+ * Builds Valheim's terrain around the player into the Minecraft world, as blocks.
  * Minecraft is hidden, so the blocks never need to look right; they only need to collide right.
  *
- * <ul>
- *   <li>Ground: full blocks up to the surface, topped with a snow layer whose collision height
- *       ((layers - 1) / 8) matches Valheim's height to 1/8 block, so slopes walk smoothly
- *       (Minecraft can only step up 0.6 blocks).</li>
- *   <li>Objects (rocks, trees, buildings): barrier blocks in every cell Valheim reports solid.</li>
- * </ul>
+ * Ground: full blocks up to the surface, topped with a snow layer whose collision height
+ * ((layers - 1) / 8) matches Valheim's height to 1/8 block, so slopes walk smoothly (Minecraft can
+ * only step up 0.6 blocks). Real blocks, so Minecraft tools and TNT can dig them.
+ * Objects (rocks, trees, buildings) are not blocks: see {@link CollisionField}.
  * Runs on the integrated server thread with a per-tick budget.
  */
 final class Terrain {
 	/** Blocks of ground under the surface; anything deeper is never reachable. */
 	private static final int DEPTH = 4;
-	/** Cells above the surface that Valheim scans for objects (and that we clear). */
-	static final int OBJECT_HEIGHT = 12;
+	/** Cells above the surface that we clear (removes barriers left by older versions). */
+	static final int CLEAR_HEIGHT = 12;
 	private static final int CHUNKS_PER_TICK = 2;
 	private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
 
@@ -60,6 +57,7 @@ final class Terrain {
 		int tries = waiting.size();
 		while (budget > 0 && tries-- > 0) {
 			JsonObject chunk = waiting.poll();
+			if (!chunk.has("top")) continue; // object-only rescan
 			int cx = chunk.get("cx").getAsInt(), cz = chunk.get("cz").getAsInt();
 			if (!level.hasChunk(cx, cz)) {
 				waiting.add(chunk); // the server loads chunks near the player; try again later
@@ -73,15 +71,9 @@ final class Terrain {
 
 	private static void write(ServerLevel level, JsonObject chunk, int cx, int cz) {
 		JsonArray top = chunk.getAsJsonArray("top");
-		Set<Long> solid = new HashSet<>();
-		JsonArray s = chunk.getAsJsonArray("solid");
-		for (int i = 0; i + 2 < s.size(); i += 3) {
-			solid.add(BlockPos.asLong(s.get(i).getAsInt(), s.get(i + 1).getAsInt(), s.get(i + 2).getAsInt()));
-		}
 
 		BlockState ground = Blocks.DIRT.defaultBlockState();
 		BlockState deep = Blocks.STONE.defaultBlockState();
-		BlockState barrier = Blocks.BARRIER.defaultBlockState();
 		BlockState air = Blocks.AIR.defaultBlockState();
 		BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 		int minY = level.getMinY(), maxY = level.getMaxY();
@@ -95,12 +87,11 @@ final class Terrain {
 				int n = (int) Math.floor(surface);
 				int layers = (int) Math.round((surface - n) * 8) + 1; // collision = (layers - 1) / 8
 
-				for (int y = n - DEPTH; y <= n + OBJECT_HEIGHT; y++) {
+				for (int y = n - DEPTH; y <= n + CLEAR_HEIGHT; y++) {
 					if (y < minY || y > maxY) continue;
 					pos.set(x, y, z);
 					BlockState state;
-					if (solid.contains(pos.asLong())) state = barrier;
-					else if (y < n - 1) state = deep;
+					if (y < n - 1) state = deep;
 					else if (y < n) state = ground;
 					else if (y == n) state = layers >= 9 ? ground : layers <= 1 ? air
 							: Blocks.SNOW.defaultBlockState().setValue(SnowLayerBlock.LAYERS, layers);
