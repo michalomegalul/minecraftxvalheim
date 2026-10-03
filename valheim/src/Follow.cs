@@ -9,7 +9,7 @@ namespace Valcraft
     internal struct McSample
     {
         public double X, Y, Z, Air;
-        public float Yaw, Pitch, Eye;
+        public float Yaw, Pitch, Eye, Fov;
         public bool Ground, Sneak, Sprint, Swim, Elytra;
         public float Arrived;
 
@@ -17,6 +17,7 @@ namespace Valcraft
         {
             X = (double)o["x"], Y = (double)o["y"], Z = (double)o["z"], Air = (double)o["air"],
             Yaw = (float)o["yaw"], Pitch = (float)o["pitch"], Eye = (float)o["eye"],
+            Fov = o["fov"] != null ? (float)o["fov"] : 70f,
             Ground = (bool)o["ground"], Sneak = (bool)o["sneak"], Sprint = (bool)o["sprint"],
             Swim = (bool)o["swim"], Elytra = (bool)o["elytra"], Arrived = now,
         };
@@ -48,6 +49,8 @@ namespace Valcraft
         private static readonly AccessTools.FieldRef<Character, GameObject> Visual = AccessTools.FieldRefAccess<Character, GameObject>("m_visual");
         private static readonly AccessTools.FieldRef<Character, Quaternion> LookYaw = AccessTools.FieldRefAccess<Character, Quaternion>("m_lookYaw");
         private static readonly AccessTools.FieldRef<Player, float> LookPitch = AccessTools.FieldRefAccess<Player, float>("m_lookPitch");
+        private static readonly AccessTools.FieldRef<GameCamera, Camera> MainCamera = AccessTools.FieldRefAccess<GameCamera, Camera>("m_camera");
+        private static readonly AccessTools.FieldRef<GameCamera, Camera> SkyCamera = AccessTools.FieldRefAccess<GameCamera, Camera>("m_skyCamera");
         private static readonly AccessTools.FieldRef<Character, float> MaxAirAltitude = AccessTools.FieldRefAccess<Character, float>("m_maxAirAltitude");
 
         public static bool Linked;
@@ -140,6 +143,23 @@ namespace Valcraft
             var s = Current();
             cam.transform.position = p.transform.position + Vector3.up * s.Eye;
             cam.transform.rotation = Quaternion.Euler(s.Pitch, ToUnityYaw(s.Yaw), 0f);
+            // Both games use vertical FOV, so Minecraft's setting carries over directly.
+            MainCamera(cam).fieldOfView = s.Fov;
+            SkyCamera(cam).fieldOfView = s.Fov;
+        }
+
+        /// <summary>Numbers for the F9 debug overlay.</summary>
+        public static string DebugText()
+        {
+            var p = Player.m_localPlayer;
+            if (!_haveSamples) return $"Valcraft: linked={Linked}, no Minecraft samples yet";
+            var s = Current();
+            string target = _anchored ? ToValheim(s).ToString("F2") : "(not anchored)";
+            string actual = p != null ? p.transform.position.ToString("F2") : "(no player)";
+            return $"Valcraft  active={Active} enabled={Enabled}\n" +
+                   $"MC   x={s.X:F2} y={s.Y:F2} z={s.Z:F2} air={s.Air:F2} ground={s.Ground} fov={s.Fov}\n" +
+                   $"VH target {target}\n" +
+                   $"VH actual {actual}  kinematic={(p != null && Body(p).isKinematic)}";
         }
 
         /// <summary>Called every frame: handles switching between following and normal play.</summary>

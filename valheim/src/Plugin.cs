@@ -11,10 +11,11 @@ namespace Valcraft
     {
         public const string Guid = "michal.valcraft";
         public const string Name = "Valcraft";
-        public const string Version = "0.2.0";
+        public const string Version = "0.2.1";
 
         internal static ManualLogSource Log;
         private readonly Link _link = new Link();
+        private bool _debug;
 
         private void Awake()
         {
@@ -36,7 +37,15 @@ namespace Valcraft
                 Follow.Enabled = !Follow.Enabled;
                 Log.LogInfo($"follow {(Follow.Enabled ? "on" : "off")}");
             }
+            if (Input.GetKeyDown(KeyCode.F9)) _debug = !_debug;
             Follow.Update();
+        }
+
+        private void OnGUI()
+        {
+            if (!_debug) return;
+            GUI.Box(new Rect(10, 10, 620, 80), "");
+            GUI.Label(new Rect(16, 14, 610, 76), Follow.DebugText());
         }
 
         private void Handle(JObject msg)

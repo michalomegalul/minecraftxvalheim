@@ -41,6 +41,7 @@ public class ValcraftClient implements ClientModInitializer {
 		s.addProperty("yaw", player.getYRot());
 		s.addProperty("pitch", player.getXRot());
 		s.addProperty("eye", player.getEyeHeight());
+		s.addProperty("fov", mc.options.fov().get());
 		s.addProperty("ground", player.onGround());
 		s.addProperty("sneak", player.isShiftKeyDown());
 		s.addProperty("sprint", player.isSprinting());
