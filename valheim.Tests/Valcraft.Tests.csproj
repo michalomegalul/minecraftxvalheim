@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Only Unity-free sources from the plugin. -->
     <Compile Include="../valheim/src/Playback.cs" Link="Playback.cs" />
+    <Compile Include="../valheim/src/Mapping.cs" Link="Mapping.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />

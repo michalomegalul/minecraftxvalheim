@@ -9,28 +9,29 @@ namespace Valcraft
     internal struct McSample
     {
         public long Tick;
-        public double X, Y, Z, Air;
+        public double X, Y, Z;
         public float Yaw, Pitch, Eye, Fov;
-        public bool Ground, Sneak, Sprint, Swim, Elytra;
+        public bool Ground, Sneak, Sprint, Swim, Elytra, Frozen;
         public double Arrived;
 
         public static McSample From(JObject o, double now) => new McSample
         {
             Tick = (long)o["tick"],
-            X = (double)o["x"], Y = (double)o["y"], Z = (double)o["z"], Air = (double)o["air"],
+            X = (double)o["x"], Y = (double)o["y"], Z = (double)o["z"],
             Yaw = (float)o["yaw"], Pitch = (float)o["pitch"], Eye = (float)o["eye"],
             Fov = o["fov"] != null ? (float)o["fov"] : 70f,
             Ground = (bool)o["ground"], Sneak = (bool)o["sneak"], Sprint = (bool)o["sprint"],
-            Swim = (bool)o["swim"], Elytra = (bool)o["elytra"], Arrived = now,
+            Swim = (bool)o["swim"], Elytra = (bool)o["elytra"], Frozen = o["frozen"] != null && (bool)o["frozen"],
+            Arrived = now,
         };
     }
 
     /// <summary>
-    /// Makes the local Valheim player follow the Minecraft player.
+    /// Makes the local Valheim player follow the Minecraft player, 1:1 (see <see cref="Mapping"/>).
     ///
-    /// Coordinates: 1 MC block = 1 Valheim metre. Minecraft is +X east, +Z south; Unity is
-    /// +X right, +Z forward. Mapping MC z to -Unity z keeps the world un-mirrored, which turns
-    /// MC yaw (0 = facing +Z, clockwise) into Unity yaw = MC yaw + 180.
+    /// Sync: when following starts, Valheim teleports the Minecraft player to the Valheim player's
+    /// position; Minecraft holds it there until the scanned ground under it is built, then says
+    /// "ready". If the two ever drift apart (Minecraft respawn, Valheim portal), we sync again.
     /// </summary>
     internal static class Follow
     {
@@ -45,10 +46,12 @@ namespace Valcraft
         private static McSample _latest;
         private static readonly System.Collections.Generic.List<McSample> Samples = new System.Collections.Generic.List<McSample>();
 
-        // Valheim position and MC x/z at the moment we linked; movement is relative to these.
-        private static bool _anchored;
-        private static Vector3 _anchorV;
-        private static double _anchorX, _anchorZ;
+        private enum Sync { None, Pending, Synced }
+        private static Sync _sync;
+        private static double _syncSentAt;
+        private const double SyncTimeout = 30;
+        /// <summary>A Minecraft jump bigger than this between ticks means it moved on its own.</summary>
+        private const double MaxTickMove = 20;
 
         private static bool _wasActive;
 
@@ -62,13 +65,28 @@ namespace Valcraft
 
         public static bool Linked;
 
-        public static bool Active
+        /// <summary>We'd like to follow Minecraft (whether or not we're synced yet).</summary>
+        private static bool Wanted
         {
             get
             {
                 var p = Player.m_localPlayer;
-                return Linked && Enabled && _haveSamples && p != null && !p.IsDead() && !p.IsTeleporting() && !p.IsAttached();
+                return Linked && Enabled && p != null && !p.IsDead() && !p.IsTeleporting() && !p.IsAttached();
             }
+        }
+
+        public static bool Active => Wanted && _haveSamples && _sync == Sync.Synced && !_latest.Frozen;
+
+        public static string SyncState => _sync.ToString();
+
+        public static void OnReady()
+        {
+            if (_sync != Sync.Pending) return;
+            // Drop samples from before the teleport so we don't glide from the old position.
+            _haveSamples = false;
+            Samples.Clear();
+            Clock.Reset();
+            _sync = Sync.Synced;
         }
 
         public static void OnSample(JObject o)
@@ -76,6 +94,15 @@ namespace Valcraft
             var s = McSample.From(o, o["_rx"] != null ? (double)o["_rx"] : Link.Now);
             if (_haveSamples && s.Tick < _latest.Tick - 100) Samples.Clear(); // Minecraft restarted
             else if (_haveSamples && s.Tick <= _latest.Tick) return;
+            if (_haveSamples && _sync == Sync.Synced && !s.Frozen)
+            {
+                double dx = s.X - _latest.X, dy = s.Y - _latest.Y, dz = s.Z - _latest.Z;
+                if (dx * dx + dy * dy + dz * dz > MaxTickMove * MaxTickMove)
+                {
+                    Plugin.Log.LogInfo("Minecraft player moved on its own (respawn?); syncing again");
+                    _sync = Sync.None;
+                }
+            }
             Clock.OnSample(s.Tick, s.Arrived);
             Samples.Add(s);
             if (Samples.Count > MaxSamples) Samples.RemoveAt(0);
@@ -104,7 +131,7 @@ namespace Valcraft
             _haveSamples = false;
             Samples.Clear();
             Clock.Reset();
-            _anchored = false;
+            _sync = Sync.None;
         }
 
         /// <summary>Minecraft state at the current playback tick, interpolated between the ticks around it.</summary>
@@ -124,7 +151,6 @@ namespace Valcraft
             s.X = a.X + (b.X - a.X) * t;
             s.Y = a.Y + (b.Y - a.Y) * t;
             s.Z = a.Z + (b.Z - a.Z) * t;
-            s.Air = a.Air + (b.Air - a.Air) * t;
             s.Yaw = Mathf.LerpAngle(a.Yaw, b.Yaw, t);
             s.Pitch = Mathf.Lerp(a.Pitch, b.Pitch, t);
             s.Eye = Mathf.Lerp(a.Eye, b.Eye, t);
@@ -136,26 +162,10 @@ namespace Valcraft
             return s;
         }
 
-        public static float ToUnityYaw(float mcYaw) => mcYaw + 180f;
-
         public static Vector3 ToValheim(McSample s)
         {
-            float x = _anchorV.x + (float)(s.X - _anchorX);
-            float z = _anchorV.z - (float)(s.Z - _anchorZ);
-            // Until Valheim's terrain is fed into Minecraft (roadmap step 3), Minecraft walks on
-            // its own floor, so we stand on Valheim's ground and only take the jump height.
-            float ground = ZoneSystem.instance != null ? ZoneSystem.instance.GetGroundHeight(new Vector3(x, 0f, z)) : _anchorV.y;
-            return new Vector3(x, ground + (float)s.Air, z);
-        }
-
-        private static void EnsureAnchor(Player p)
-        {
-            if (_anchored) return;
-            _anchorV = p.transform.position;
-            _anchorX = _latest.X;
-            _anchorZ = _latest.Z;
-            _anchored = true;
-            Plugin.Log.LogInfo($"anchored MC ({_anchorX:F1}, {_anchorZ:F1}) to Valheim {_anchorV}");
+            var v = Mapping.ToValheim(s.X, s.Y, s.Z);
+            return new Vector3((float)v.x, (float)v.y, (float)v.z);
         }
 
         /// <summary>Replaces Character.UpdateMotion for the local player while following.</summary>
@@ -164,12 +174,11 @@ namespace Valcraft
             var p = c as Player;
             if (p == null || p != Player.m_localPlayer || !Active) return true;
 
-            EnsureAnchor(p);
             var s = Current();
             var body = Body(c);
             body.isKinematic = true;
             body.MovePosition(ToValheim(s));
-            var yaw = Quaternion.Euler(0f, ToUnityYaw(s.Yaw), 0f);
+            var yaw = Quaternion.Euler(0f, Mapping.ToUnityYaw(s.Yaw), 0f);
             body.MoveRotation(yaw);
             LookYaw(c) = yaw;
             LookPitch(p) = s.Pitch;
@@ -183,47 +192,69 @@ namespace Valcraft
         {
             var p = Player.m_localPlayer;
             if (!Active || p == null) return;
-            if (!_anchored) return;
             var s = Current();
             cam.transform.position = ToValheim(s) + Vector3.up * s.Eye;
-            cam.transform.rotation = Quaternion.Euler(s.Pitch, ToUnityYaw(s.Yaw), 0f);
+            cam.transform.rotation = Quaternion.Euler(s.Pitch, Mapping.ToUnityYaw(s.Yaw), 0f);
             // Both games use vertical FOV, so Minecraft's setting carries over directly.
             MainCamera(cam).fieldOfView = s.Fov;
             SkyCamera(cam).fieldOfView = s.Fov;
+        }
+
+        /// <summary>Put the Minecraft player where the Valheim player is.</summary>
+        private static void SendTeleport(Link link, Player p)
+        {
+            var pos = p.transform.position;
+            var mc = Mapping.ToMc(pos.x, pos.y + 0.05, pos.z);
+            float yaw = GameCamera.instance != null ? GameCamera.instance.transform.eulerAngles.y : p.transform.eulerAngles.y;
+            link.Send(new JObject
+            {
+                ["t"] = "teleport", ["x"] = mc.x, ["y"] = mc.y, ["z"] = mc.z,
+                ["yaw"] = Mapping.ToMcYaw(yaw), ["pitch"] = 0f,
+            });
+            Plugin.Log.LogInfo($"sync: teleporting Minecraft to {mc.x:F1} {mc.y:F1} {mc.z:F1}");
         }
 
         /// <summary>Numbers for the F9 debug overlay.</summary>
         public static string DebugText()
         {
             var p = Player.m_localPlayer;
-            if (!_haveSamples) return $"Valcraft: linked={Linked}, no Minecraft samples yet";
+            if (!_haveSamples) return $"Valcraft: linked={Linked} sync={_sync}, no Minecraft samples yet";
             var s = Current();
-            string target = _anchored ? ToValheim(s).ToString("F2") : "(not anchored)";
+            string target = ToValheim(s).ToString("F2");
             string actual = p != null ? p.transform.position.ToString("F2") : "(no player)";
-            return $"Valcraft  active={Active} enabled={Enabled} forwarding={InputForward.Forwarding}\n" +
-                   $"MC   x={s.X:F2} y={s.Y:F2} z={s.Z:F2} air={s.Air:F2} ground={s.Ground} fov={s.Fov}\n" +
+            return $"Valcraft  active={Active} enabled={Enabled} sync={_sync} forwarding={InputForward.Forwarding}\n" +
+                   $"MC   x={s.X:F2} y={s.Y:F2} z={s.Z:F2} ground={s.Ground} frozen={s.Frozen} fov={s.Fov}\n" +
                    $"VH target {target}\n" +
                    $"VH actual {actual}  kinematic={(p != null && Body(p).isKinematic)}\n" +
                    $"buffer {Clock.Buffered * 50:F0}/{Clock.TargetTicks * 50:F0} ms  jitter {Clock.Jitter * 50:F0} ms  " +
-                   $"MC speed {Clock.McSpeed * 20:F1} t/s  ran dry {Clock.Starved} frames";
+                   $"MC speed {Clock.McSpeed * 20:F1} t/s  ran dry {Clock.Starved} frames\n" +
+                   $"terrain: {TerrainScanner.ChunksSent} chunks sent, {TerrainScanner.Pending} queued";
         }
 
-        /// <summary>Called every frame: handles switching between following and normal play.</summary>
-        public static void Update()
+        /// <summary>Called every frame: syncing, and switching between following and normal play.</summary>
+        public static void Update(Link link)
         {
             double now = Link.Now;
             _playTick = Clock.Advance(_lastFrame > 0 ? now - _lastFrame : 0);
             _lastFrame = now;
+
+            if (!Wanted)
+            {
+                _sync = Sync.None; // sync again when following resumes (F8, portal, respawn)
+            }
+            else if (_sync == Sync.None || _sync == Sync.Pending && now - _syncSentAt > SyncTimeout)
+            {
+                SendTeleport(link, Player.m_localPlayer);
+                _sync = Sync.Pending;
+                _syncSentAt = now;
+            }
+
             bool active = Active;
             if (active == _wasActive) return;
             _wasActive = active;
             var p = Player.m_localPlayer;
             if (p == null) return;
-            if (!active)
-            {
-                Body(p).isKinematic = false;
-                _anchored = false; // re-anchor wherever we are next time
-            }
+            if (!active) Body(p).isKinematic = false;
             // Hide our own body in first person but keep its shadow.
             var visual = Visual(p);
             if (visual != null)

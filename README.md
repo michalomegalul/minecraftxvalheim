@@ -24,9 +24,9 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 |---|---|---|
 | 0 | BepInEx loads our plugin in Valheim | ✅ works |
 | 1a | **Link**: Fabric mod ⇄ Valheim plugin over localhost; walking in MC moves the Valheim player; first-person camera | ✅ works |
-| 1b | **Input**: play through the Valheim window, keys/mouse forwarded to a hidden Minecraft | built, needs in-game check |
+| 1b | **Input**: play through the Valheim window, keys/mouse forwarded to a hidden Minecraft | ✅ works |
 | 2 | **Blocks**: blocks placed/broken in MC appear in Valheim | |
-| 3 | **Ground**: Valheim terrain scanned into MC collision, so you walk Valheim hills in MC physics; digging | |
+| 3 | **Ground**: Valheim terrain and objects built into the MC world as blocks, so MC physics collides with Valheim; digging | collision built, needs in-game check |
 | 4 | **Combat**: MC hits damage Valheim creatures; TNT craters | |
 | 5 | **Elytra** and polish | |
 
@@ -59,8 +59,12 @@ so blocks become real objects in its world and get its lighting, shadows and fog
    ```
 
 ### Playing
-Start Valheim and load a world, then start Minecraft (any world, a superflat creative world is easiest)
-and minimize it. Minecraft chat says `[Valcraft] Linked to Valheim`, and Valheim switches to
+Valheim's world is built into the Minecraft world as (invisible) blocks, so Minecraft needs an empty
+singleplayer world: **Create New World → World Type: Superflat → Customize → Presets → The Void**.
+
+Start Valheim and load a world, then start Minecraft, open that void world and minimize it.
+Minecraft says `Syncing with Valheim...`, holds you in place for a moment while the ground around you
+is built, then `Synced with Valheim`. Minecraft chat says `[Valcraft] Linked to Valheim`, and Valheim switches to
 first person. Play in the Valheim window:
 
 | Key | Goes to |
@@ -73,7 +77,13 @@ first person. Play in the Valheim window:
 
 While a Valheim menu is open, nothing is forwarded and all Minecraft keys are released.
 
-For now Valheim keeps you on its own ground and only copies your jump height, because Minecraft
-doesn't know Valheim's terrain yet (step 3).
+How the world gets into Minecraft: Valheim scans a 112 m square around you, one 16×16 chunk per
+frame. For every 1 m column it sends the ground height, and which 1 m cells up to 12 m above it hold
+something solid (rocks, trees, buildings). Minecraft fills the ground with blocks topped by a snow
+layer whose height matches Valheim's to 1/8 block (so slopes walk smoothly), and puts barrier blocks
+in the solid cells. Coordinates are 1:1: Minecraft (x, y, z) = Valheim (x, y − 40, −z).
+
+Known limits: thin walls become 1–2 blocks thick, doors are solid, no water yet, and changes to the
+Valheim world after a chunk was scanned (felled trees, new buildings) aren't picked up yet.
 
 Override the game path with `dotnet build -c Release -p:GameDir=/path/to/Valheim`.
