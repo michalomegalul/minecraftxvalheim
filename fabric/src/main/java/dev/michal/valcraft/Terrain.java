@@ -71,6 +71,11 @@ final class Terrain {
 		dirty.clear();
 	}
 
+	/** The surface we built for this column, or null if it isn't Valheim ground. */
+	Double surfaceAt(int x, int z) {
+		return surfaces.get(BlockPos.asLong(x, 0, z));
+	}
+
 	static boolean isGround(BlockState state) {
 		return state.is(Blocks.DIRT) || state.is(Blocks.STONE) || state.is(Blocks.SNOW);
 	}
@@ -103,9 +108,23 @@ final class Terrain {
 			} finally {
 				writing = false;
 			}
+			// Re-mirror this chunk's blocks to Valheim (picks up blocks placed in earlier sessions).
+			int[] range = surfaceRange(chunk);
+			BlockMirror.markColumnDirty(cx, cz, range[0] - DEPTH, range[1] + 48);
 			written.add(key(cx, cz));
 			budget--;
 		}
+	}
+
+	private static int[] surfaceRange(JsonObject chunk) {
+		int lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
+		for (var h : chunk.getAsJsonArray("top")) {
+			if (h.isJsonNull()) continue;
+			int y = (int) Math.floor(h.getAsDouble());
+			lo = Math.min(lo, y);
+			hi = Math.max(hi, y);
+		}
+		return lo > hi ? new int[]{0, 0} : new int[]{lo, hi};
 	}
 
 	/** Re-measure dug columns and tell Valheim about lowered surfaces. */

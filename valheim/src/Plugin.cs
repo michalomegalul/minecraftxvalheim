@@ -11,7 +11,7 @@ namespace Valcraft
     {
         public const string Guid = "michal.valcraft";
         public const string Name = "Valcraft";
-        public const string Version = "0.6.0";
+        public const string Version = "0.7.0";
 
         internal static ManualLogSource Log;
         private readonly Link _link = new Link();
@@ -47,8 +47,8 @@ namespace Valcraft
         private void OnGUI()
         {
             if (!_debug) return;
-            GUI.Box(new Rect(10, 10, 620, 120), "");
-            GUI.Label(new Rect(16, 14, 610, 116), Follow.DebugText());
+            GUI.Box(new Rect(10, 10, 620, 140), "");
+            GUI.Label(new Rect(16, 14, 610, 136), Follow.DebugText());
         }
 
         private void Handle(JObject msg)
@@ -61,12 +61,19 @@ namespace Valcraft
                     Follow.Reset();
                     InputForward.Reset();
                     TerrainScanner.Reset();
+                    if (up) BlockMeshes.Reset();
                     Log.LogInfo($"Minecraft {(up ? "connected" : "disconnected")}");
                     Player.m_localPlayer?.Message(MessageHud.MessageType.Center, up ? "Minecraft linked" : "Minecraft link lost");
                     if (up) _link.Send(new JObject { ["t"] = "hello", ["version"] = Version });
                     break;
                 case "player":
                     Follow.OnSample(msg);
+                    break;
+                case "atlas":
+                    BlockMeshes.OnAtlas(msg);
+                    break;
+                case "mesh":
+                    BlockMeshes.OnMesh(msg);
                     break;
                 case "dig":
                     Dig.OnDig(msg);

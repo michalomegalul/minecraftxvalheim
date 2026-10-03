@@ -261,7 +261,8 @@ namespace Valcraft
                    $"VH actual {actual}  kinematic={(p != null && Body(p).isKinematic)}\n" +
                    $"buffer {Clock.Buffered * 50:F0}/{Clock.TargetTicks * 50:F0} ms  jitter {Clock.Jitter * 50:F0} ms  " +
                    $"MC speed {Clock.McSpeed * 20:F1} t/s  ran dry {Clock.Starved} frames\n" +
-                   $"terrain: {TerrainScanner.ChunksSent} chunks sent, {TerrainScanner.Pending} queued, {TerrainScanner.BoxesLastChunk} boxes in last";
+                   $"terrain: {TerrainScanner.ChunksSent} chunks sent, {TerrainScanner.Pending} queued, {TerrainScanner.BoxesLastChunk} boxes in last\n" +
+                   $"blocks: {BlockMeshes.SectionCount} sections, atlas={(BlockMeshes.HaveAtlas ? "yes" : "waiting")}";
         }
 
         /// <summary>Called every frame: syncing, and switching between following and normal play.</summary>

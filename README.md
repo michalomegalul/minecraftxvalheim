@@ -25,7 +25,7 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 | 0 | BepInEx loads our plugin in Valheim | ✅ works |
 | 1a | **Link**: Fabric mod ⇄ Valheim plugin over localhost; walking in MC moves the Valheim player; first-person camera | ✅ works |
 | 1b | **Input**: play through the Valheim window, keys/mouse forwarded to a hidden Minecraft | ✅ works |
-| 2 | **Blocks**: blocks placed/broken in MC appear in Valheim | |
+| 2 | **Blocks**: blocks placed/broken in MC appear in Valheim (rendered by MC, lit by Valheim) | built, needs in-game check |
 | 3 | **Ground**: Valheim terrain and objects built into the MC world, so MC physics collides with Valheim | ✅ works |
 | 3b | **Digging**: pickaxe/shovel/TNT in Minecraft digs Valheim's terrain; sneaking = Valheim stealth | built, needs in-game check |
 | 4 | **Combat**: MC hits damage Valheim creatures; TNT craters | |
@@ -95,6 +95,10 @@ How the world gets into Minecraft: Valheim scans a 112 m square around you in 16
   world like a Valheim pickaxe dig. Pits and craters show up in Valheim; tunnelling sideways
   doesn't change Valheim's surface. Ground is 9 blocks deep with bedrock below (Valheim allows
   digging 8 m down).
+- **Blocks** you place in Minecraft show up in Valheim. Minecraft renders each changed 16×16×16
+  section with its own block and fluid renderers into quads, and sends them with its block atlas
+  (exported from the GPU once). Valheim builds meshes from them using its own materials, so
+  stairs, glass, torches, water and lava look like Minecraft but get Valheim's light and shadows.
 - **Sneaking** in Minecraft crouches in Valheim: stealth, quieter footsteps, Sneak skill.
 
 Known limits: no water yet; changes further than one chunk away are only picked up when you get

@@ -16,6 +16,7 @@ public class ValcraftClient implements ClientModInitializer {
 	private static final Link link = new Link();
 	private final RemoteInput input = new RemoteInput();
 	private static final Terrain terrain = new Terrain(link::send);
+	private static final BlockMirror blocks = new BlockMirror(link::send, terrain);
 
 	// Set by a "teleport" from Valheim: hold the player here until the ground under them exists.
 	private boolean frozen;
@@ -64,6 +65,7 @@ public class ValcraftClient implements ClientModInitializer {
 	private void sendState(Minecraft mc) {
 		LocalPlayer player = mc.player;
 		if (player == null || !link.isConnected()) return;
+		blocks.tick(mc);
 
 		if (player.onGround()) lastGroundY = player.getY();
 
@@ -100,6 +102,7 @@ public class ValcraftClient implements ClientModInitializer {
 			frozen = false;
 			terrain.clear();
 			CollisionField.clear();
+			blocks.reset();
 			say(mc, up ? "Linked to Valheim" : "Valheim link lost");
 		} else if (type.equals("input")) {
 			if (!frozen) input.apply(mc, msg);

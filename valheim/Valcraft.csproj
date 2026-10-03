@@ -22,6 +22,7 @@
     <Reference Include="UnityEngine.InputLegacyModule" HintPath="$(Managed)/UnityEngine.InputLegacyModule.dll" Private="false" />
     <Reference Include="UnityEngine.IMGUIModule" HintPath="$(Managed)/UnityEngine.IMGUIModule.dll" Private="false" />
     <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(Managed)/UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(Managed)/UnityEngine.ImageConversionModule.dll" Private="false" />
     <Reference Include="Newtonsoft.Json" HintPath="$(Managed)/Newtonsoft.Json.dll" Private="false" />
   </ItemGroup>
 
