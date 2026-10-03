@@ -19,6 +19,7 @@ namespace Valcraft
         private static bool _haveLook;
         public static float Yaw, Pitch;
         public static double Sensitivity = 0.5; // Minecraft's default, updated from MC samples
+        private const float ValheimMouseScale = 0.05f; // ZInput: scaleVector2(x=0.05,y=0.05)
 
         private static readonly (string name, KeyCode key)[] Keys =
         {
@@ -27,7 +28,8 @@ namespace Valcraft
             ("drop", KeyCode.Q),
         };
 
-        public static bool Forwarding => Follow.Active && !ValheimUiOpen();
+        // Only while the Valheim window has focus, so you can still play Minecraft directly.
+        public static bool Forwarding => Follow.Active && Application.isFocused && !ValheimUiOpen();
 
         /// <summary>Use our own look direction instead of Minecraft's (only while forwarding).</summary>
         public static bool OwnsLook => _haveLook && Forwarding;
@@ -69,7 +71,8 @@ namespace Valcraft
             // Same curve as Minecraft's MouseHandler: pixels -> degrees.
             double f = Sensitivity * 0.6 + 0.2;
             float degPerPixel = (float)(f * f * f * 8.0 * 0.15);
-            Vector2 d = ZInput.GetMouseDelta();
+            // ZInput scales the raw mouse delta by 0.05 for Valheim's own camera; undo that.
+            Vector2 d = ZInput.GetMouseDelta() / ValheimMouseScale;
             Yaw += d.x * degPerPixel;
             Pitch = Mathf.Clamp(Pitch - d.y * degPerPixel, -90f, 90f);
 
@@ -78,11 +81,10 @@ namespace Valcraft
             keys["attack"] = ZInput.GetMouseButton(0);
             keys["use"] = ZInput.GetMouseButton(1);
 
+            // Pressed through Minecraft's own hotbar key bindings, so it syncs the slot to the server.
+            for (int i = 0; i < 9; i++) keys["hotbar" + (i + 1)] = ZInput.GetKey(KeyCode.Alpha1 + i, false);
+
             var msg = new JObject { ["t"] = "input", ["keys"] = keys, ["yaw"] = Yaw, ["pitch"] = Pitch };
-            for (int i = 0; i < 9; i++)
-            {
-                if (ZInput.GetKeyDown(KeyCode.Alpha1 + i, false)) msg["slot"] = i;
-            }
             float scroll = ZInput.GetMouseScrollWheel();
             if (scroll != 0f) msg["scroll"] = scroll > 0f ? 1 : -1;
             link.Send(msg);
@@ -94,6 +96,7 @@ namespace Valcraft
             foreach (var (name, _) in Keys) keys[name] = false;
             keys["attack"] = false;
             keys["use"] = false;
+            for (int i = 0; i < 9; i++) keys["hotbar" + (i + 1)] = false;
             return new JObject { ["t"] = "input", ["keys"] = keys };
         }
     }

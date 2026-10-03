@@ -31,14 +31,14 @@ final class RemoteInput {
 			press(o.keyDrop, k, "drop");
 			press(o.keyAttack, k, "attack");
 			press(o.keyUse, k, "use");
+			for (int i = 0; i < 9; i++) {
+				press(o.keyHotbarSlots[i], k, "hotbar" + (i + 1));
+			}
 		}
 		// Valheim owns the look direction (so its camera has no lag); we just follow it.
 		if (msg.has("yaw")) {
 			player.setYRot(msg.get("yaw").getAsFloat());
 			player.setXRot(msg.get("pitch").getAsFloat());
-		}
-		if (msg.has("slot")) {
-			player.getInventory().setSelectedSlot(msg.get("slot").getAsInt());
 		}
 		if (msg.has("scroll")) {
 			int slot = player.getInventory().getSelectedSlot() - msg.get("scroll").getAsInt();

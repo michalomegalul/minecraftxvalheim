@@ -8,6 +8,7 @@ namespace Valcraft
     /// <summary>One player-state sample from Minecraft (sent every MC tick, 20 Hz).</summary>
     internal struct McSample
     {
+        public long Tick;
         public double X, Y, Z, Air;
         public float Yaw, Pitch, Eye, Fov;
         public bool Ground, Sneak, Sprint, Swim, Elytra;
@@ -15,6 +16,7 @@ namespace Valcraft
 
         public static McSample From(JObject o, float now) => new McSample
         {
+            Tick = (long)o["tick"],
             X = (double)o["x"], Y = (double)o["y"], Z = (double)o["z"], Air = (double)o["air"],
             Yaw = (float)o["yaw"], Pitch = (float)o["pitch"], Eye = (float)o["eye"],
             Fov = o["fov"] != null ? (float)o["fov"] : 70f,
@@ -33,10 +35,17 @@ namespace Valcraft
     internal static class Follow
     {
         private const float TickSeconds = 0.05f;
+        // Play Minecraft back this far behind the newest tick, so network jitter never leaves us
+        // without a sample to interpolate toward (Minecraft itself renders ~1 tick behind too).
+        private const float PlaybackDelay = 0.06f;
+        private const int MaxSamples = 16;
 
         public static bool Enabled = true;
         private static bool _haveSamples;
-        private static McSample _prev, _latest;
+        private static McSample _latest;
+        private static readonly System.Collections.Generic.List<McSample> Samples = new System.Collections.Generic.List<McSample>();
+        // Estimated (arrival time - tick * TickSeconds): maps Minecraft ticks onto our clock.
+        private static double _clockOffset;
 
         // Valheim position and MC x/z at the moment we linked; movement is relative to these.
         private static bool _anchored;
@@ -67,31 +76,61 @@ namespace Valcraft
         public static void OnSample(JObject o)
         {
             var s = McSample.From(o, Time.time);
-            _prev = _haveSamples ? _latest : s;
+            if (_haveSamples && s.Tick <= _latest.Tick) Samples.Clear(); // Minecraft restarted
+            double offset = s.Arrived - s.Tick * TickSeconds;
+            // Follow the earliest (least delayed) arrivals quickly, drift up slowly.
+            if (Samples.Count == 0 || offset < _clockOffset) _clockOffset = offset;
+            else _clockOffset += (offset - _clockOffset) * 0.02;
+            Samples.Add(s);
+            if (Samples.Count > MaxSamples) Samples.RemoveAt(0);
             _latest = s;
             _haveSamples = true;
             InputForward.OnMcLook(s.Yaw, s.Pitch);
+            ShowHeldItem((int?)o["slot"] ?? -1, (string)o["item"] ?? "");
             if (o["sens"] != null) InputForward.Sensitivity = (double)o["sens"];
+        }
+
+        private static int _lastSlot = -1;
+        private static string _lastItem;
+
+        /// <summary>Minecraft's hotbar isn't drawn in Valheim yet, so say what's in hand when it changes.</summary>
+        private static void ShowHeldItem(int slot, string item)
+        {
+            if (slot == _lastSlot && item == _lastItem) return;
+            bool first = _lastItem == null;
+            _lastSlot = slot;
+            _lastItem = item;
+            if (!first) Player.m_localPlayer?.Message(MessageHud.MessageType.TopLeft, $"[{slot + 1}] {item}");
         }
 
         public static void Reset()
         {
             _haveSamples = false;
+            Samples.Clear();
             _anchored = false;
         }
 
-        /// <summary>Current Minecraft state, interpolated between the last two ticks.</summary>
+        /// <summary>Minecraft state at (now - PlaybackDelay), interpolated between the ticks around it.</summary>
         private static McSample Current()
         {
-            float a = Mathf.Clamp01((Time.time - _latest.Arrived) / TickSeconds);
-            var s = _latest;
-            s.X = _prev.X + (_latest.X - _prev.X) * a;
-            s.Y = _prev.Y + (_latest.Y - _prev.Y) * a;
-            s.Z = _prev.Z + (_latest.Z - _prev.Z) * a;
-            s.Air = _prev.Air + (_latest.Air - _prev.Air) * a;
-            s.Yaw = Mathf.LerpAngle(_prev.Yaw, _latest.Yaw, a);
-            s.Pitch = Mathf.Lerp(_prev.Pitch, _latest.Pitch, a);
-            s.Eye = Mathf.Lerp(_prev.Eye, _latest.Eye, a);
+            double tick = (Time.time - PlaybackDelay - _clockOffset) / TickSeconds;
+            McSample a = Samples[0], b = Samples[0];
+            for (int i = 0; i < Samples.Count; i++)
+            {
+                b = Samples[i];
+                if (b.Tick >= tick) break;
+                a = b;
+            }
+            // Past the newest sample: hold it (no extrapolation, so no overshoot on stops).
+            float t = b.Tick > a.Tick ? Mathf.Clamp01((float)((tick - a.Tick) / (b.Tick - a.Tick))) : 1f;
+            var s = b;
+            s.X = a.X + (b.X - a.X) * t;
+            s.Y = a.Y + (b.Y - a.Y) * t;
+            s.Z = a.Z + (b.Z - a.Z) * t;
+            s.Air = a.Air + (b.Air - a.Air) * t;
+            s.Yaw = Mathf.LerpAngle(a.Yaw, b.Yaw, t);
+            s.Pitch = Mathf.Lerp(a.Pitch, b.Pitch, t);
+            s.Eye = Mathf.Lerp(a.Eye, b.Eye, t);
             if (InputForward.OwnsLook)
             {
                 s.Yaw = InputForward.Yaw;
@@ -147,8 +186,9 @@ namespace Valcraft
         {
             var p = Player.m_localPlayer;
             if (!Active || p == null) return;
+            if (!_anchored) return;
             var s = Current();
-            cam.transform.position = p.transform.position + Vector3.up * s.Eye;
+            cam.transform.position = ToValheim(s) + Vector3.up * s.Eye;
             cam.transform.rotation = Quaternion.Euler(s.Pitch, ToUnityYaw(s.Yaw), 0f);
             // Both games use vertical FOV, so Minecraft's setting carries over directly.
             MainCamera(cam).fieldOfView = s.Fov;

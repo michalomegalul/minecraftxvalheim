@@ -55,6 +55,8 @@ public class ValcraftClient implements ClientModInitializer {
 		s.addProperty("sprint", player.isSprinting());
 		s.addProperty("swim", player.isSwimming());
 		s.addProperty("elytra", player.isFallFlying());
+		s.addProperty("slot", player.getInventory().getSelectedSlot());
+		s.addProperty("item", player.getInventory().getSelectedItem().getHoverName().getString());
 		link.send(s);
 	}
 
