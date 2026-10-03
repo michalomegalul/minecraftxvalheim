@@ -8,10 +8,14 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 
 public class ValcraftClient implements ClientModInitializer {
-	private final Link link = new Link();
+	private static final Link link = new Link();
 	private final RemoteInput input = new RemoteInput();
 	private double lastGroundY;
 	private long tick;
+
+	public static boolean isLinked() {
+		return link.isConnected();
+	}
 
 	@Override
 	public void onInitializeClient() {

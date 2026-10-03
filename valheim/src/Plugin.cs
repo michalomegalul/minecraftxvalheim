@@ -11,7 +11,7 @@ namespace Valcraft
     {
         public const string Guid = "michal.valcraft";
         public const string Name = "Valcraft";
-        public const string Version = "0.3.1";
+        public const string Version = "0.3.2";
 
         internal static ManualLogSource Log;
         private readonly Link _link = new Link();
@@ -45,8 +45,8 @@ namespace Valcraft
         private void OnGUI()
         {
             if (!_debug) return;
-            GUI.Box(new Rect(10, 10, 620, 80), "");
-            GUI.Label(new Rect(16, 14, 610, 76), Follow.DebugText());
+            GUI.Box(new Rect(10, 10, 620, 100), "");
+            GUI.Label(new Rect(16, 14, 610, 96), Follow.DebugText());
         }
 
         private void Handle(JObject msg)

@@ -23,6 +23,11 @@ namespace Valcraft
 
         public bool Connected => _writer != null;
 
+        private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+
+        /// <summary>Seconds on a precise clock shared by the network thread and the game.</summary>
+        public static double Now => Clock.Elapsed.TotalSeconds;
+
         public void Start()
         {
             _listener = new TcpListener(IPAddress.Loopback, Port);
@@ -74,7 +79,9 @@ namespace Valcraft
                         {
                             try
                             {
-                                Inbox.Enqueue(JObject.Parse(line));
+                                var msg = JObject.Parse(line);
+                                msg["_rx"] = Now; // arrival time, stamped before the game thread sees it
+                                Inbox.Enqueue(msg);
                             }
                             catch (Exception)
                             {

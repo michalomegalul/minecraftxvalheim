@@ -12,9 +12,9 @@ namespace Valcraft
         public double X, Y, Z, Air;
         public float Yaw, Pitch, Eye, Fov;
         public bool Ground, Sneak, Sprint, Swim, Elytra;
-        public float Arrived;
+        public double Arrived;
 
-        public static McSample From(JObject o, float now) => new McSample
+        public static McSample From(JObject o, double now) => new McSample
         {
             Tick = (long)o["tick"],
             X = (double)o["x"], Y = (double)o["y"], Z = (double)o["z"], Air = (double)o["air"],
@@ -35,9 +35,11 @@ namespace Valcraft
     internal static class Follow
     {
         private const float TickSeconds = 0.05f;
-        // Play Minecraft back this far behind the newest tick, so network jitter never leaves us
-        // without a sample to interpolate toward (Minecraft itself renders ~1 tick behind too).
-        private const float PlaybackDelay = 0.06f;
+        // Play Minecraft back a little behind the newest tick, so uneven arrival never leaves us
+        // without a sample to interpolate toward. The delay adapts to measured jitter.
+        private const float MinDelay = 0.05f, MaxDelay = 0.2f;
+        private static float _delay = 0.06f, _targetDelay = 0.06f, _jitter;
+        private static int _starved;
         private const int MaxSamples = 16;
 
         public static bool Enabled = true;
@@ -75,12 +77,23 @@ namespace Valcraft
 
         public static void OnSample(JObject o)
         {
-            var s = McSample.From(o, Time.time);
+            var s = McSample.From(o, o["_rx"] != null ? (double)o["_rx"] : Link.Now);
             if (_haveSamples && s.Tick <= _latest.Tick) Samples.Clear(); // Minecraft restarted
             double offset = s.Arrived - s.Tick * TickSeconds;
-            // Follow the earliest (least delayed) arrivals quickly, drift up slowly.
-            if (Samples.Count == 0 || offset < _clockOffset) _clockOffset = offset;
-            else _clockOffset += (offset - _clockOffset) * 0.02;
+            if (Samples.Count == 0)
+            {
+                _clockOffset = offset;
+                _jitter = 0f;
+            }
+            else
+            {
+                // How late this sample is compared with our clock; remember the worst recently.
+                float late = (float)(offset - _clockOffset);
+                _jitter = Mathf.Max(late, _jitter * 0.98f);
+                // Move the clock gradually (never jump), faster toward earlier arrivals.
+                _clockOffset += (offset - _clockOffset) * (offset < _clockOffset ? 0.1 : 0.01);
+            }
+            _targetDelay = Mathf.Clamp(_jitter + 0.03f, MinDelay, MaxDelay);
             Samples.Add(s);
             if (Samples.Count > MaxSamples) Samples.RemoveAt(0);
             _latest = s;
@@ -113,7 +126,8 @@ namespace Valcraft
         /// <summary>Minecraft state at (now - PlaybackDelay), interpolated between the ticks around it.</summary>
         private static McSample Current()
         {
-            double tick = (Time.time - PlaybackDelay - _clockOffset) / TickSeconds;
+            double tick = (Link.Now - _delay - _clockOffset) / TickSeconds;
+            if (tick > Samples[Samples.Count - 1].Tick) _starved++;
             McSample a = Samples[0], b = Samples[0];
             for (int i = 0; i < Samples.Count; i++)
             {
@@ -206,12 +220,15 @@ namespace Valcraft
             return $"Valcraft  active={Active} enabled={Enabled} forwarding={InputForward.Forwarding}\n" +
                    $"MC   x={s.X:F2} y={s.Y:F2} z={s.Z:F2} air={s.Air:F2} ground={s.Ground} fov={s.Fov}\n" +
                    $"VH target {target}\n" +
-                   $"VH actual {actual}  kinematic={(p != null && Body(p).isKinematic)}";
+                   $"VH actual {actual}  kinematic={(p != null && Body(p).isKinematic)}\n" +
+                   $"buffer {_delay * 1000f:F0} ms  jitter {_jitter * 1000f:F0} ms  ran dry {_starved} frames";
         }
 
         /// <summary>Called every frame: handles switching between following and normal play.</summary>
         public static void Update()
         {
+            // Ease toward the wanted buffer size so playback speed never visibly jumps.
+            _delay = Mathf.MoveTowards(_delay, _targetDelay, 0.05f * Time.deltaTime);
             bool active = Active;
             if (active == _wasActive) return;
             _wasActive = active;

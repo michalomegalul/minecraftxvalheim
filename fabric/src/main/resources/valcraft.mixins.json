@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "dev.michal.valcraft.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"FramerateLimitTrackerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
