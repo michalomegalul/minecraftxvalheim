@@ -36,6 +36,7 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 |---|---|
 | `valheim/` | BepInEx plugin (C#, netstandard2.1) |
 | `fabric/` | Minecraft 26.2 Fabric mod (Java), client-only |
+| `valheim.Tests/` | Unit tests for Unity-free plugin code (`cd valheim.Tests && dotnet test`) |
 
 ## Setup (Linux, native Valheim)
 
