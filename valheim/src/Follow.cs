@@ -70,6 +70,8 @@ namespace Valcraft
             _prev = _haveSamples ? _latest : s;
             _latest = s;
             _haveSamples = true;
+            InputForward.OnMcLook(s.Yaw, s.Pitch);
+            if (o["sens"] != null) InputForward.Sensitivity = (double)o["sens"];
         }
 
         public static void Reset()
@@ -90,6 +92,11 @@ namespace Valcraft
             s.Yaw = Mathf.LerpAngle(_prev.Yaw, _latest.Yaw, a);
             s.Pitch = Mathf.Lerp(_prev.Pitch, _latest.Pitch, a);
             s.Eye = Mathf.Lerp(_prev.Eye, _latest.Eye, a);
+            if (InputForward.OwnsLook)
+            {
+                s.Yaw = InputForward.Yaw;
+                s.Pitch = InputForward.Pitch;
+            }
             return s;
         }
 
@@ -156,7 +163,7 @@ namespace Valcraft
             var s = Current();
             string target = _anchored ? ToValheim(s).ToString("F2") : "(not anchored)";
             string actual = p != null ? p.transform.position.ToString("F2") : "(no player)";
-            return $"Valcraft  active={Active} enabled={Enabled}\n" +
+            return $"Valcraft  active={Active} enabled={Enabled} forwarding={InputForward.Forwarding}\n" +
                    $"MC   x={s.X:F2} y={s.Y:F2} z={s.Z:F2} air={s.Air:F2} ground={s.Ground} fov={s.Fov}\n" +
                    $"VH target {target}\n" +
                    $"VH actual {actual}  kinematic={(p != null && Body(p).isKinematic)}";

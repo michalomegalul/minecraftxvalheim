@@ -11,7 +11,7 @@ namespace Valcraft
     {
         public const string Guid = "michal.valcraft";
         public const string Name = "Valcraft";
-        public const string Version = "0.2.1";
+        public const string Version = "0.3.0";
 
         internal static ManualLogSource Log;
         private readonly Link _link = new Link();
@@ -32,13 +32,14 @@ namespace Valcraft
             while (_link.Inbox.TryDequeue(out var msg))
                 Handle(msg);
 
-            if (Input.GetKeyDown(KeyCode.F8))
+            if (ZInput.GetKeyDown(KeyCode.F8, false))
             {
                 Follow.Enabled = !Follow.Enabled;
                 Log.LogInfo($"follow {(Follow.Enabled ? "on" : "off")}");
             }
-            if (Input.GetKeyDown(KeyCode.F9)) _debug = !_debug;
+            if (ZInput.GetKeyDown(KeyCode.F9, false)) _debug = !_debug;
             Follow.Update();
+            InputForward.Update(_link);
         }
 
         private void OnGUI()
@@ -56,6 +57,7 @@ namespace Valcraft
                     bool up = (string)msg["state"] == "connected";
                     Follow.Linked = up;
                     Follow.Reset();
+                    InputForward.Reset();
                     Log.LogInfo($"Minecraft {(up ? "connected" : "disconnected")}");
                     Player.m_localPlayer?.Message(MessageHud.MessageType.Center, up ? "Minecraft linked" : "Minecraft link lost");
                     if (up) _link.Send(new JObject { ["t"] = "hello", ["version"] = Version });

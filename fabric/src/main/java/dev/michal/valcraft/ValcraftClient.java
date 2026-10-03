@@ -9,22 +9,29 @@ import net.minecraft.network.chat.Component;
 
 public class ValcraftClient implements ClientModInitializer {
 	private final Link link = new Link();
+	private final RemoteInput input = new RemoteInput();
 	private double lastGroundY;
 	private long tick;
 
 	@Override
 	public void onInitializeClient() {
 		link.start();
-		ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
+		// Read Valheim's input before Minecraft processes key bindings for this tick.
+		ClientTickEvents.START_CLIENT_TICK.register(this::receive);
+		ClientTickEvents.END_CLIENT_TICK.register(this::sendState);
 	}
 
-	private void onTick(Minecraft mc) {
-		LocalPlayer player = mc.player;
-
+	private void receive(Minecraft mc) {
+		// You play through the Valheim window, so Minecraft must keep running unfocused.
+		if (mc.options != null) mc.options.pauseOnLostFocus = false;
 		JsonObject msg;
 		while ((msg = link.poll()) != null) {
 			handle(mc, msg);
 		}
+	}
+
+	private void sendState(Minecraft mc) {
+		LocalPlayer player = mc.player;
 		if (player == null || !link.isConnected()) return;
 
 		if (player.onGround()) lastGroundY = player.getY();
@@ -42,6 +49,7 @@ public class ValcraftClient implements ClientModInitializer {
 		s.addProperty("pitch", player.getXRot());
 		s.addProperty("eye", player.getEyeHeight());
 		s.addProperty("fov", mc.options.fov().get());
+		s.addProperty("sens", mc.options.sensitivity().get());
 		s.addProperty("ground", player.onGround());
 		s.addProperty("sneak", player.isShiftKeyDown());
 		s.addProperty("sprint", player.isSprinting());
@@ -55,6 +63,8 @@ public class ValcraftClient implements ClientModInitializer {
 		if (type.equals("_link")) {
 			boolean up = msg.get("state").getAsString().equals("connected");
 			say(mc, up ? "Linked to Valheim" : "Valheim link lost");
+		} else if (type.equals("input")) {
+			input.apply(mc, msg);
 		} else if (type.equals("hello")) {
 			say(mc, "Valheim says hi: " + msg.get("version").getAsString());
 		}

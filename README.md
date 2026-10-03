@@ -23,8 +23,8 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 | Step | Goal | Status |
 |---|---|---|
 | 0 | BepInEx loads our plugin in Valheim | ✅ works |
-| 1a | **Link**: Fabric mod ⇄ Valheim plugin over localhost; walking in MC moves the Valheim player; first-person camera | built, needs in-game check |
-| 1b | **Input**: play through the Valheim window, keys/mouse forwarded to a hidden Minecraft | |
+| 1a | **Link**: Fabric mod ⇄ Valheim plugin over localhost; walking in MC moves the Valheim player; first-person camera | ✅ works |
+| 1b | **Input**: play through the Valheim window, keys/mouse forwarded to a hidden Minecraft | built, needs in-game check |
 | 2 | **Blocks**: blocks placed/broken in MC appear in Valheim | |
 | 3 | **Ground**: Valheim terrain scanned into MC collision, so you walk Valheim hills in MC physics; digging | |
 | 4 | **Combat**: MC hits damage Valheim creatures; TNT craters | |
@@ -57,11 +57,20 @@ so blocks become real objects in its world and get its lighting, shadows and fog
    cd fabric && ./gradlew deploy
    ```
 
-### Trying step 1a
+### Playing
 Start Valheim and load a world, then start Minecraft (any world, a superflat creative world is easiest)
-and put the two windows side by side. Minecraft chat says `[Valcraft] Linked to Valheim`, and
-Valheim switches to first person and follows your Minecraft movement. **F8** in Valheim toggles
-following on and off.
+and minimize it. Minecraft chat says `[Valcraft] Linked to Valheim`, and Valheim switches to
+first person. Play in the Valheim window:
+
+| Key | Goes to |
+|---|---|
+| WASD, Space, Shift (sneak), Ctrl (sprint), Q (drop) | Minecraft |
+| Mouse look, left/right click, 1–9, scroll | Minecraft |
+| E (interact), Tab (inventory), Esc, M (map), Enter (chat) | Valheim |
+| F8 | toggle following Minecraft on/off |
+| F9 | debug overlay |
+
+While a Valheim menu is open, nothing is forwarded and all Minecraft keys are released.
 
 For now Valheim keeps you on its own ground and only copies your jump height, because Minecraft
 doesn't know Valheim's terrain yet (step 3).
