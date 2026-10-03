@@ -36,7 +36,19 @@ public abstract class GameRendererMixin {
 	private boolean valcraft$skipWorld(LevelRenderer renderer, com.mojang.blaze3d.resource.GraphicsResourceAllocator a,
 			net.minecraft.client.DeltaTracker b, boolean c, net.minecraft.client.renderer.state.level.CameraRenderState d,
 			org.joml.Matrix4fc e, com.mojang.blaze3d.buffers.GpuBufferSlice f, Vector4f g, boolean h) {
-		return !ValcraftClient.isLinked();
+		if (!ValcraftClient.isLinked()) return true;
+		// The world pass also sets up world lighting, which the hand needs (else it's lit like a GUI icon).
+		((GameRenderer) (Object) this).lighting().setupFor(com.mojang.blaze3d.platform.Lighting.Entry.LEVEL);
+		return false;
+	}
+
+	/** Light the hand with Valheim's brightness (sky) plus Minecraft's own torches (block light). */
+	@ModifyArg(method = "renderItemInHand", index = 4, at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/client/renderer/ItemInHandRenderer;submitHandsWithItems(FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/player/LocalPlayer;I)V"))
+	private int valcraft$valheimLight(int lightCoords) {
+		int sky = ValcraftClient.valheimSky;
+		if (!ValcraftClient.isLinked() || sky < 0) return lightCoords;
+		return net.minecraft.util.LightCoordsUtil.pack(net.minecraft.util.LightCoordsUtil.block(lightCoords), sky);
 	}
 
 	@Inject(method = "render", at = @At("TAIL"))

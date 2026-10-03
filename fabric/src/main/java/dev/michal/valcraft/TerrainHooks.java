@@ -9,6 +9,14 @@ public final class TerrainHooks {
 	private TerrainHooks() {
 	}
 
+	/** Is this the snow layer we put on top of a Valheim ground column? */
+	public static boolean isValheimGroundTop(BlockPos pos) {
+		Terrain t = Terrain.instance;
+		if (t == null || !ValcraftClient.isLinked()) return false;
+		Double surface = t.surfaceAt(pos.getX(), pos.getZ());
+		return surface != null && pos.getY() == (int) Math.floor(surface);
+	}
+
 	/** Server thread, before any block change in the world. */
 	public static void beforeSetBlock(ServerLevel level, BlockPos pos, BlockState newState) {
 		Terrain t = Terrain.instance;

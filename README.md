@@ -76,6 +76,9 @@ first person. Play in the Valheim window:
 | Tab | Minecraft inventory (mouse works in it; Esc or Tab closes) |
 | E (interact), Shift+Tab (Valheim inventory), Esc, M (map), Enter (chat) | Valheim |
 | F10 | flip the Minecraft overlay if it's upside down |
+
+On link, Valheim resizes Minecraft's window to half its own resolution with the same shape (so the
+GUI fits ultrawide screens and there are fewer pixels to copy).
 | F8 | toggle following Minecraft on/off |
 | F9 | debug overlay |
 

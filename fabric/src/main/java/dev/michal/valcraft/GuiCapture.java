@@ -40,6 +40,9 @@ public final class GuiCapture {
 	private static MappedByteBuffer shm;
 	private static long frame;
 	private static int topDown = -1;
+	private static long lastCopyNanos;
+	/** 30 frames a second is smooth for a GUI and halves the copying. */
+	private static final long MIN_INTERVAL_NANOS = 33_000_000L;
 
 	private GuiCapture() {
 	}
@@ -49,7 +52,11 @@ public final class GuiCapture {
 		if (!ValcraftClient.isLinked() || target.getColorTexture() == null) return;
 		try {
 			if (copyPending && copyDone) publish();
-			if (!copyPending) startCopy(target);
+			long now = System.nanoTime();
+			if (!copyPending && now - lastCopyNanos >= MIN_INTERVAL_NANOS) {
+				lastCopyNanos = now;
+				startCopy(target);
+			}
 		} catch (Exception e) {
 			copyPending = false;
 		}

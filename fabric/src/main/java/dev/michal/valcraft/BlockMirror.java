@@ -187,8 +187,31 @@ final class BlockMirror {
 		return msg;
 	}
 
+	/** Render one block's model at the origin (for entities like lit TNT): layers JSON, same format. */
+	static JsonObject tesselateSingle(Minecraft mc, ClientLevel level, BlockState state, BlockPos at) {
+		Map<ChunkSectionLayer, Quads> layers = new EnumMap<>(ChunkSectionLayer.class);
+		ModelBlockRenderer blocks = new ModelBlockRenderer(false, true, mc.getBlockColors());
+		if (state.getRenderShape() == RenderShape.MODEL) {
+			blocks.tesselateBlock(
+					(x, y, z, quad, inst) -> {
+						Quads q = layers.computeIfAbsent(quad.materialInfo().layer(), l -> new Quads());
+						for (int v = 0; v < 4; v++) {
+							Vector3fc p = quad.position(v);
+							long uv = quad.packedUV(v);
+							q.vertex(p.x(), p.y(), p.z(), UVPair.unpackU(uv), UVPair.unpackV(uv), inst.getColor(v));
+						}
+					},
+					0, 0, 0, level, at, state, mc.getModelManager().getBlockStateModelSet().get(state), 42L);
+		}
+		JsonObject out = new JsonObject();
+		layers.forEach((layer, q) -> {
+			if (q.count > 0) out.add(layer.name().toLowerCase(), q.toJson());
+		});
+		return out;
+	}
+
 	/** Captured quads (4 vertices each), as flat arrays. Also used as the fluid VertexConsumer. */
-	private static final class Quads implements VertexConsumer {
+	static final class Quads implements VertexConsumer {
 		final JsonArray pos = new JsonArray(), uv = new JsonArray(), color = new JsonArray();
 		int count;
 

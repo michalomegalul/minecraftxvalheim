@@ -7,6 +7,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.input.MouseButtonInfo;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.MouseHandler;
 import dev.michal.valcraft.mixin.MouseHandlerAccessor;
 
 import java.util.HashMap;
@@ -45,6 +47,7 @@ final class RemoteInput {
 			player.setYRot(msg.get("yaw").getAsFloat());
 			player.setXRot(msg.get("pitch").getAsFloat());
 		}
+		if (msg.has("sky")) ValcraftClient.valheimSky = msg.get("sky").getAsInt();
 		if (msg.has("scroll")) {
 			int slot = player.getInventory().getSelectedSlot() - msg.get("scroll").getAsInt();
 			player.getInventory().setSelectedSlot(Math.floorMod(slot, 9));
@@ -67,12 +70,22 @@ final class RemoteInput {
 		MouseHandlerAccessor mouse = (MouseHandlerAccessor) mc.mouseHandler;
 		double x = msg.get("x").getAsDouble() * window.getScreenWidth();
 		double y = msg.get("y").getAsDouble() * window.getScreenHeight();
+		int mods = msg.has("shift") && msg.get("shift").getAsBoolean() ? 1 : 0; // GLFW_MOD_SHIFT
 		if (x != lastX || y != lastY) {
 			mouse.valcraft$onMove(handle, x, y);
+			// Minecraft only passes movement to screens while its window is active, and it's
+			// minimized: call the screen ourselves, so hovering (tooltips) and dragging work.
+			double sx = mc.mouseHandler.getScaledXPos(window), sy = mc.mouseHandler.getScaledYPos(window);
+			screen.mouseMoved(sx, sy);
+			if (lastX >= 0) {
+				double dx = MouseHandler.getScaledXPos(window, x - lastX), dy = MouseHandler.getScaledYPos(window, y - lastY);
+				for (int b = 0; b < 3; b++) {
+					if (screenButtons[b]) screen.mouseDragged(new MouseButtonEvent(sx, sy, new MouseButtonInfo(b, mods)), dx, dy);
+				}
+			}
 			lastX = x;
 			lastY = y;
 		}
-		int mods = msg.has("shift") && msg.get("shift").getAsBoolean() ? 1 : 0; // GLFW_MOD_SHIFT
 		for (int b = 0; b < 3; b++) {
 			boolean now = msg.get("b" + b).getAsBoolean();
 			if (now != screenButtons[b]) {

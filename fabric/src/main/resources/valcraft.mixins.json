@@ -9,7 +9,8 @@
 	],
 	"mixins": [
 		"EntityGetterMixin",
-		"LevelMixin"
+		"LevelMixin",
+		"SnowLayerBlockMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

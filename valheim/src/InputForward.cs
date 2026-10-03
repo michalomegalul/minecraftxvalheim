@@ -86,10 +86,27 @@ namespace Valcraft
             // Pressed through Minecraft's own hotbar key bindings, so it syncs the slot to the server.
             for (int i = 0; i < 9; i++) keys["hotbar" + (i + 1)] = ZInput.GetKey(KeyCode.Alpha1 + i, false);
 
-            var msg = new JObject { ["t"] = "input", ["keys"] = keys, ["yaw"] = Yaw, ["pitch"] = Pitch };
+            var msg = new JObject { ["t"] = "input", ["keys"] = keys, ["yaw"] = Yaw, ["pitch"] = Pitch, ["sky"] = ValheimBrightness() };
             float scroll = ZInput.GetMouseScrollWheel();
             if (scroll != 0f) msg["scroll"] = scroll > 0f ? 1 : -1;
             link.Send(msg);
+        }
+
+        private static readonly System.Func<Character, bool> IsUnderRoof =
+            AccessTools.MethodDelegate<System.Func<Character, bool>>(AccessTools.Method(typeof(Character), "IsUnderRoof"));
+
+        /// <summary>
+        /// Rough Valheim brightness at the player as a Minecraft sky light level (0-15), so the
+        /// Minecraft hand gets darker at night and indoors instead of always fully lit.
+        /// </summary>
+        private static int ValheimBrightness()
+        {
+            var p = Player.m_localPlayer;
+            float Lum(Color c) => 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+            float ambient = Lum(RenderSettings.ambientLight);
+            float sun = RenderSettings.sun != null && RenderSettings.sun.isActiveAndEnabled ? RenderSettings.sun.intensity * Lum(RenderSettings.sun.color) : 0f;
+            if (p != null && IsUnderRoof(p)) sun *= 0.15f;
+            return Mathf.Clamp(Mathf.RoundToInt(3f + 12f * Mathf.Clamp01(ambient * 1.2f + sun * 0.6f)), 0, 15);
         }
 
         private static JObject ReleaseAll()

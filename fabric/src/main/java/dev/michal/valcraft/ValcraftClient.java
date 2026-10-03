@@ -17,6 +17,9 @@ public class ValcraftClient implements ClientModInitializer {
 	private final RemoteInput input = new RemoteInput();
 	private static final Terrain terrain = new Terrain(link::send);
 	private static final BlockMirror blocks = new BlockMirror(link::send, terrain);
+	private static final EntityMirror entities = new EntityMirror(link::send);
+	/** Valheim's brightness where the player stands (0-15), used to light Minecraft's hand. */
+	public static volatile int valheimSky = -1;
 
 	// Set by a "teleport" from Valheim: hold the player here until the ground under them exists.
 	private boolean frozen;
@@ -66,6 +69,7 @@ public class ValcraftClient implements ClientModInitializer {
 		LocalPlayer player = mc.player;
 		if (player == null || !link.isConnected()) return;
 		blocks.tick(mc);
+		entities.tick(mc);
 
 		if (player.onGround()) lastGroundY = player.getY();
 
@@ -104,9 +108,16 @@ public class ValcraftClient implements ClientModInitializer {
 			terrain.clear();
 			CollisionField.clear();
 			blocks.reset();
+			entities.reset();
+			valheimSky = -1;
 			say(mc, up ? "Linked to Valheim" : "Valheim link lost");
 		} else if (type.equals("input")) {
 			if (!frozen) input.apply(mc, msg);
+		} else if (type.equals("window")) {
+			// Match Valheim's shape (e.g. ultrawide) so the GUI overlay fits; half size is plenty.
+			var window = mc.getWindow();
+			if (window.isFullscreen()) window.toggleFullScreen();
+			window.setWindowed(msg.get("w").getAsInt(), msg.get("h").getAsInt());
 		} else if (type.equals("screen_input")) {
 			input.applyScreen(mc, msg);
 		} else if (type.equals("chunk")) {

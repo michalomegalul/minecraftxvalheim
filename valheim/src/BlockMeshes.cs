@@ -87,7 +87,7 @@ namespace Valcraft
             Sections[key] = section;
         }
 
-        private const int MaxLightsPerSection = 8;
+        private const int MaxLightsPerSection = 4;
 
         /// <summary>
         /// Light-emitting blocks (torches, lava, glowstone) light Valheim too. Minecraft merges them
@@ -111,12 +111,12 @@ namespace Valcraft
                 light.intensity = 0.6f + level / 15f;
                 light.color = new Color(1f, 0.72f, 0.42f);
                 light.shadows = LightShadows.None;
-                light.renderMode = LightRenderMode.ForcePixel;
+                light.renderMode = LightRenderMode.Auto; // let Unity's pixel-light budget decide
             }
         }
 
         /// <summary>Quads in section-local Minecraft coordinates -> a Unity mesh.</summary>
-        private static Mesh BuildMesh(JObject data)
+        internal static Mesh BuildMesh(JObject data)
         {
             var p = (JArray)data["p"];
             var uv = (JArray)data["uv"];
@@ -154,42 +154,42 @@ namespace Valcraft
             return mesh;
         }
 
-        /// <summary>
-        /// A Valheim material per layer, borrowed from Valheim's own prefabs so blocks are lit like
-        /// the rest of the world. Logged, so a wrong pick is easy to spot.
-        /// </summary>
-        private static Material MaterialFor(string layer)
+        // Shaders to try per layer, best first. Valheim's own lit shaders give its light, shadows and
+        // fog; Sprites/Default (unlit, but always in every Unity build) guarantees blocks show.
+        private static readonly string[] SolidShaders = { "Custom/Piece", "Standard", "Custom/StaticRock", "Legacy Shaders/Diffuse", "Sprites/Default" };
+        private static readonly string[] CutoutShaders = { "Custom/Vegetation", "Legacy Shaders/Transparent/Cutout/Diffuse", "Standard", "Sprites/Default" };
+        private static readonly string[] TranslucentShaders = { "Legacy Shaders/Transparent/Diffuse", "Sprites/Default" };
+        private static bool _loggedShaders;
+
+        /// <summary>A material per layer (solid, cutout, translucent), logged so a bad pick is easy to spot.</summary>
+        internal static Material MaterialFor(string layer)
         {
             if (Materials.TryGetValue(layer, out var m)) return m;
-            var source = FindSourceMaterial(layer);
-            m = source != null ? new Material(source) : new Material(Shader.Find("Standard"));
+            if (!_loggedShaders)
+            {
+                _loggedShaders = true;
+                var names = Resources.FindObjectsOfTypeAll<Shader>().Select(x => x.name).Distinct().OrderBy(x => x);
+                Plugin.Log.LogInfo("shaders available: " + string.Join(", ", names));
+            }
+            var wanted = layer == "solid" ? SolidShaders : layer == "translucent" ? TranslucentShaders : CutoutShaders;
+            Shader shader = null;
+            foreach (var name in wanted)
+            {
+                shader = Shader.Find(name) ?? Resources.FindObjectsOfTypeAll<Shader>().FirstOrDefault(x => x.name == name);
+                if (shader != null) break;
+            }
+            m = new Material(shader);
             m.name = "Valcraft " + layer;
             if (m.HasProperty("_Color")) m.color = Color.white;
-            foreach (var prop in new[] { "_BumpMap", "_MetallicGlossMap", "_EmissionMap", "_DetailAlbedoMap" })
-                if (m.HasProperty(prop)) m.SetTexture(prop, null);
-            if (layer != "solid" && m.HasProperty("_Cutoff")) m.SetFloat("_Cutoff", 0.5f);
+            if (layer != "solid")
+            {
+                if (m.HasProperty("_Cutoff")) m.SetFloat("_Cutoff", 0.5f);
+                m.EnableKeyword("_ALPHATEST_ON");
+            }
             SetTexture(m);
             Materials[layer] = m;
-            Plugin.Log.LogInfo($"blocks '{layer}': shader {m.shader.name} (from {(source != null ? source.name : "fallback")}), " +
-                               $"textures [{string.Join(", ", m.GetTexturePropertyNames())}]");
+            Plugin.Log.LogInfo($"blocks '{layer}': shader {shader?.name ?? "none"}, textures [{string.Join(", ", m.GetTexturePropertyNames())}]");
             return m;
-        }
-
-        private static Material FindSourceMaterial(string layer)
-        {
-            var scene = ZNetScene.instance;
-            if (scene == null) return null;
-            // Opaque: a plain wooden building piece. Cutout: a plant with alpha-tested leaves.
-            string[] candidates = layer == "solid"
-                ? new[] { "wood_floor", "wood_wall_half", "stone_floor_2x2" }
-                : new[] { "Pickable_Dandelion", "Bush01", "Beech_small1", "wood_floor" };
-            foreach (var name in candidates)
-            {
-                var prefab = scene.GetPrefab(name);
-                var r = prefab != null ? prefab.GetComponentsInChildren<Renderer>(true).FirstOrDefault(x => x.sharedMaterial != null) : null;
-                if (r != null) return r.sharedMaterial;
-            }
-            return null;
         }
 
         private static void SetTexture(Material m)

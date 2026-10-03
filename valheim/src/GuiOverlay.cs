@@ -22,7 +22,6 @@ namespace Valcraft
         private static long _viewSize;
         private static Texture2D _tex;
         private static long _lastFrame;
-        private static bool _topDown;
         private static float _lastFrameTime = -10f;
         /// <summary>F10: flip the overlay if it ever shows upside down.</summary>
         public static bool Flip;
@@ -55,7 +54,6 @@ namespace Valcraft
                     _tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
                 }
                 Upload(w * h * 4);
-                _topDown = _view.ReadInt32(12) == 1;
                 _lastFrame = frame;
                 _lastFrameTime = Time.time;
             }
@@ -119,8 +117,9 @@ namespace Valcraft
         {
             if (!Showing || Event.current.type != EventType.Repaint || InputForward.ValheimUiOpen()) return;
             var rect = ScreenRect;
-            // Unity textures start at the bottom row; top-down data needs flipping.
-            bool flip = _topDown ^ Flip;
+            // Readback rows arrive top-down on both backends in practice (seen in-game), and Unity
+            // textures start at the bottom row, so flip by default; F10 toggles it.
+            bool flip = !Flip;
             GUI.DrawTextureWithTexCoords(rect, _tex, flip ? new Rect(0, 1, 1, -1) : new Rect(0, 0, 1, 1), true);
         }
     }
