@@ -11,7 +11,7 @@ namespace Valcraft
         public long Tick;
         public double X, Y, Z;
         public float Yaw, Pitch, Eye, Fov;
-        public bool Ground, Sneak, Sprint, Swim, Elytra, Frozen;
+        public bool Ground, Sneak, Sprint, Swim, Elytra, Frozen, Screen;
         public double Arrived;
 
         public static McSample From(JObject o, double now) => new McSample
@@ -22,6 +22,7 @@ namespace Valcraft
             Fov = o["fov"] != null ? (float)o["fov"] : 70f,
             Ground = (bool)o["ground"], Sneak = (bool)o["sneak"], Sprint = (bool)o["sprint"],
             Swim = (bool)o["swim"], Elytra = (bool)o["elytra"], Frozen = o["frozen"] != null && (bool)o["frozen"],
+            Screen = o["screen"] != null && (bool)o["screen"],
             Arrived = now,
         };
     }
@@ -86,6 +87,9 @@ namespace Valcraft
 
         public static string SyncState => _sync.ToString();
 
+        /// <summary>A Minecraft screen (inventory, crafting, chest...) is open.</summary>
+        public static bool McScreenOpen => Linked && _haveSamples && _latest.Screen;
+
         public static void OnReady()
         {
             if (_sync != Sync.Pending) return;
@@ -130,7 +134,8 @@ namespace Valcraft
             bool first = _lastItem == null;
             _lastSlot = slot;
             _lastItem = item;
-            if (!first) Player.m_localPlayer?.Message(MessageHud.MessageType.TopLeft, $"[{slot + 1}] {item}");
+            // Once Minecraft's own hotbar is drawn over Valheim, it shows this itself.
+            if (!first && !GuiOverlay.Showing) Player.m_localPlayer?.Message(MessageHud.MessageType.TopLeft, $"[{slot + 1}] {item}");
         }
 
         public static void Reset()

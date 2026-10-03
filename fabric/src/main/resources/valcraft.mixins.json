@@ -3,7 +3,9 @@
 	"package": "dev.michal.valcraft.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
-		"FramerateLimitTrackerMixin"
+		"FramerateLimitTrackerMixin",
+		"GameRendererMixin",
+		"MouseHandlerAccessor"
 	],
 	"mixins": [
 		"EntityGetterMixin",

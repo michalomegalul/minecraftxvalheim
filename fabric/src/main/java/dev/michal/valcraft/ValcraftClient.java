@@ -91,6 +91,7 @@ public class ValcraftClient implements ClientModInitializer {
 		s.addProperty("slot", player.getInventory().getSelectedSlot());
 		s.addProperty("item", player.getInventory().getSelectedItem().getHoverName().getString());
 		s.addProperty("frozen", frozen);
+		s.addProperty("screen", mc.gui.screen() != null);
 		link.send(s);
 	}
 
@@ -106,6 +107,8 @@ public class ValcraftClient implements ClientModInitializer {
 			say(mc, up ? "Linked to Valheim" : "Valheim link lost");
 		} else if (type.equals("input")) {
 			if (!frozen) input.apply(mc, msg);
+		} else if (type.equals("screen_input")) {
+			input.applyScreen(mc, msg);
 		} else if (type.equals("chunk")) {
 			if (msg.has("boxes")) {
 				CollisionField.put(msg.get("cx").getAsInt(), msg.get("cz").getAsInt(), msg.getAsJsonArray("boxes"));

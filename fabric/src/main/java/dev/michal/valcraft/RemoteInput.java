@@ -6,6 +6,8 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.input.MouseButtonInfo;
+import dev.michal.valcraft.mixin.MouseHandlerAccessor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,6 +15,8 @@ import java.util.Map;
 /** Applies keyboard/mouse input forwarded from the Valheim window. */
 final class RemoteInput {
 	private final Map<String, Boolean> down = new HashMap<>();
+	private final boolean[] screenButtons = new boolean[3];
+	private double lastX = -1, lastY = -1;
 
 	void apply(Minecraft mc, JsonObject msg) {
 		LocalPlayer player = mc.player;
@@ -31,6 +35,7 @@ final class RemoteInput {
 			press(o.keyDrop, k, "drop");
 			press(o.keyAttack, k, "attack");
 			press(o.keyUse, k, "use");
+			press(o.keyInventory, k, "inventory");
 			for (int i = 0; i < 9; i++) {
 				press(o.keyHotbarSlots[i], k, "hotbar" + (i + 1));
 			}
@@ -44,6 +49,38 @@ final class RemoteInput {
 			int slot = player.getInventory().getSelectedSlot() - msg.get("scroll").getAsInt();
 			player.getInventory().setSelectedSlot(Math.floorMod(slot, 9));
 		}
+	}
+
+	/**
+	 * Mouse over an open Minecraft screen (inventory, crafting, chests), in Minecraft window
+	 * coordinates scaled 0..1 from the top-left, as Valheim draws it.
+	 */
+	void applyScreen(Minecraft mc, JsonObject msg) {
+		var screen = mc.gui.screen();
+		if (screen == null) return;
+		if (msg.has("close") && msg.get("close").getAsBoolean()) {
+			screen.onClose();
+			return;
+		}
+		var window = mc.getWindow();
+		long handle = window.handle();
+		MouseHandlerAccessor mouse = (MouseHandlerAccessor) mc.mouseHandler;
+		double x = msg.get("x").getAsDouble() * window.getScreenWidth();
+		double y = msg.get("y").getAsDouble() * window.getScreenHeight();
+		if (x != lastX || y != lastY) {
+			mouse.valcraft$onMove(handle, x, y);
+			lastX = x;
+			lastY = y;
+		}
+		int mods = msg.has("shift") && msg.get("shift").getAsBoolean() ? 1 : 0; // GLFW_MOD_SHIFT
+		for (int b = 0; b < 3; b++) {
+			boolean now = msg.get("b" + b).getAsBoolean();
+			if (now != screenButtons[b]) {
+				mouse.valcraft$onButton(handle, new MouseButtonInfo(b, mods), now ? 1 : 0);
+				screenButtons[b] = now;
+			}
+		}
+		if (msg.has("scroll")) mouse.valcraft$onScroll(handle, 0, msg.get("scroll").getAsDouble());
 	}
 
 	private void press(KeyMapping mapping, JsonObject keys, String name) {

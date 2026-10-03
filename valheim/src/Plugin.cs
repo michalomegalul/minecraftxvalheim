@@ -11,7 +11,7 @@ namespace Valcraft
     {
         public const string Guid = "michal.valcraft";
         public const string Name = "Valcraft";
-        public const string Version = "0.7.0";
+        public const string Version = "0.8.0";
 
         internal static ManualLogSource Log;
         private readonly Link _link = new Link();
@@ -38,14 +38,18 @@ namespace Valcraft
                 Log.LogInfo($"follow {(Follow.Enabled ? "on" : "off")}");
             }
             if (ZInput.GetKeyDown(KeyCode.F9, false)) _debug = !_debug;
+            if (ZInput.GetKeyDown(KeyCode.F10, false)) GuiOverlay.Flip = !GuiOverlay.Flip;
+            GuiOverlay.Update();
             if (Follow.Linked && Player.m_localPlayer != null)
                 TerrainScanner.Update(_link, Player.m_localPlayer.transform.position);
             Follow.Update(_link);
             InputForward.Update(_link);
+            ScreenInput.Update(_link);
         }
 
         private void OnGUI()
         {
+            GuiOverlay.OnGUI();
             if (!_debug) return;
             GUI.Box(new Rect(10, 10, 620, 140), "");
             GUI.Label(new Rect(16, 14, 610, 136), Follow.DebugText());

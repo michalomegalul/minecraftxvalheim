@@ -28,7 +28,8 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 | 2 | **Blocks**: blocks placed/broken in MC appear in Valheim (rendered by MC, lit by Valheim) | built, needs in-game check |
 | 3 | **Ground**: Valheim terrain and objects built into the MC world, so MC physics collides with Valheim | ✅ works |
 | 3b | **Digging**: pickaxe/shovel/TNT in Minecraft digs Valheim's terrain; sneaking = Valheim stealth | built, needs in-game check |
-| 4 | **Combat**: MC hits damage Valheim creatures; TNT craters | |
+| 2b | **Minecraft GUI in Valheim**: hand, hotbar, hearts, inventory screens over Valheim; Valheim HUD hidden | built, needs in-game check |
+| 4 | **Combat**: MC hits damage Valheim creatures | |
 | 5 | **Elytra** and polish | |
 
 ## Layout
@@ -72,7 +73,9 @@ first person. Play in the Valheim window:
 |---|---|
 | WASD, Space, Shift (sneak), Ctrl (sprint), Q (drop) | Minecraft |
 | Mouse look, left/right click, 1–9, scroll | Minecraft |
-| E (interact), Tab (inventory), Esc, M (map), Enter (chat) | Valheim |
+| Tab | Minecraft inventory (mouse works in it; Esc or Tab closes) |
+| E (interact), Shift+Tab (Valheim inventory), Esc, M (map), Enter (chat) | Valheim |
+| F10 | flip the Minecraft overlay if it's upside down |
 | F8 | toggle following Minecraft on/off |
 | F9 | debug overlay |
 
@@ -99,6 +102,12 @@ How the world gets into Minecraft: Valheim scans a 112 m square around you in 16
   section with its own block and fluid renderers into quads, and sends them with its block atlas
   (exported from the GPU once). Valheim builds meshes from them using its own materials, so
   stairs, glass, torches, water and lava look like Minecraft but get Valheim's light and shadows.
+- **Minecraft's hand and GUI** are drawn over Valheim (like SkyCraft's hand/GUI layers). While
+  linked, Minecraft skips drawing its world and clears to transparent, so its frame is just the
+  hand, hotbar, hearts, crosshair and any open screen. Each frame is read back from the GPU into
+  shared memory (`/dev/shm/valcraft_gui`), which Valheim maps and draws on top. Valheim's HUD and
+  small minimap are hidden meanwhile. Minecraft's inventory and other screens get Valheim's mouse
+  through Minecraft's own mouse handler, so dragging, shift-click and tooltips work.
 - **Sneaking** in Minecraft crouches in Valheim: stealth, quieter footsteps, Sneak skill.
 
 - **Water**: below Valheim's sea level (which is also its rivers and lakes) columns are filled

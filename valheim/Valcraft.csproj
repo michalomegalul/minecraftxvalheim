@@ -4,6 +4,7 @@
     <AssemblyName>Valcraft</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GameDir Condition="'$(GameDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/Valheim</GameDir>
     <Managed>$(GameDir)/valheim_Data/Managed</Managed>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
