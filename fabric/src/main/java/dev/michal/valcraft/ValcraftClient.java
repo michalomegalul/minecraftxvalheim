@@ -15,7 +15,7 @@ import java.util.Set;
 public class ValcraftClient implements ClientModInitializer {
 	private static final Link link = new Link();
 	private final RemoteInput input = new RemoteInput();
-	private static final Terrain terrain = new Terrain();
+	private static final Terrain terrain = new Terrain(link::send);
 
 	// Set by a "teleport" from Valheim: hold the player here until the ground under them exists.
 	private boolean frozen;

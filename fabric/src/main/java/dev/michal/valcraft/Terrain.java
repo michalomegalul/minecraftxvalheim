@@ -10,8 +10,10 @@ import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayDeque;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
 
 /**
  * Builds Valheim's terrain around the player into the Minecraft world, as blocks.
@@ -21,11 +23,17 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * ((layers - 1) / 8) matches Valheim's height to 1/8 block, so slopes walk smoothly (Minecraft can
  * only step up 0.6 blocks). Real blocks, so Minecraft tools and TNT can dig them.
  * Objects (rocks, trees, buildings) are not blocks: see {@link CollisionField}.
+ *
+ * Digging: when ground blocks disappear (pickaxe, shovel, TNT, creepers), the column's highest
+ * remaining ground block is re-measured at the end of the tick, and a lower surface is sent to
+ * Valheim, which digs its terrain to match. Tunnelling sideways leaves the top in place, so
+ * Valheim's surface doesn't change.
+ *
  * Runs on the integrated server thread with a per-tick budget.
  */
 final class Terrain {
-	/** Blocks of ground under the surface; anything deeper is never reachable. */
-	private static final int DEPTH = 4;
+	/** Blocks of ground under the surface; Valheim can be dug 8 m down, bedrock below that. */
+	private static final int DEPTH = 9;
 	/** Cells above the surface that we clear (removes barriers left by older versions). */
 	static final int CLEAR_HEIGHT = 12;
 	private static final int CHUNKS_PER_TICK = 2;
@@ -34,6 +42,18 @@ final class Terrain {
 	private final ConcurrentLinkedQueue<JsonObject> incoming = new ConcurrentLinkedQueue<>();
 	private final ArrayDeque<JsonObject> waiting = new ArrayDeque<>(); // chunk not loaded yet
 	private final Set<Long> written = java.util.concurrent.ConcurrentHashMap.newKeySet();
+	// Server thread only: the surface we built per column, and columns that lost ground blocks.
+	private final Map<Long, Double> surfaces = new java.util.concurrent.ConcurrentHashMap<>();
+	private final Set<Long> dirty = java.util.concurrent.ConcurrentHashMap.newKeySet();
+	private final Consumer<JsonObject> send;
+	/** True while we write blocks ourselves, so our own changes don't count as digging. */
+	static boolean writing;
+	static Terrain instance;
+
+	Terrain(Consumer<JsonObject> send) {
+		this.send = send;
+		instance = this;
+	}
 
 	/** Called from the client thread when a chunk arrives from Valheim. */
 	void enqueue(JsonObject chunk) {
@@ -47,10 +67,24 @@ final class Terrain {
 	void clear() {
 		incoming.clear();
 		written.clear();
+		surfaces.clear();
+		dirty.clear();
+	}
+
+	static boolean isGround(BlockState state) {
+		return state.is(Blocks.DIRT) || state.is(Blocks.STONE) || state.is(Blocks.SNOW);
+	}
+
+	/** Server thread (from LevelMixin): a ground block at pos is about to be removed. */
+	void onGroundRemoved(BlockPos pos) {
+		long col = BlockPos.asLong(pos.getX(), 0, pos.getZ());
+		Double surface = surfaces.get(col);
+		if (surface != null && pos.getY() <= Math.floor(surface)) dirty.add(col);
 	}
 
 	/** Server thread, every tick. */
 	void tick(ServerLevel level) {
+		if (!dirty.isEmpty()) sendDigs(level);
 		JsonObject c;
 		while ((c = incoming.poll()) != null) waiting.add(c);
 		int budget = CHUNKS_PER_TICK;
@@ -63,18 +97,56 @@ final class Terrain {
 				waiting.add(chunk); // the server loads chunks near the player; try again later
 				continue;
 			}
-			write(level, chunk, cx, cz);
+			writing = true;
+			try {
+				write(level, chunk, cx, cz);
+			} finally {
+				writing = false;
+			}
 			written.add(key(cx, cz));
 			budget--;
 		}
 	}
 
-	private static void write(ServerLevel level, JsonObject chunk, int cx, int cz) {
+	/** Re-measure dug columns and tell Valheim about lowered surfaces. */
+	private void sendDigs(ServerLevel level) {
+		JsonArray cols = new JsonArray();
+		BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+		for (long col : dirty) {
+			int x = BlockPos.getX(col), z = BlockPos.getZ(col);
+			Double known = surfaces.get(col);
+			if (known == null) continue;
+			double old = known;
+			int n = (int) Math.floor(old);
+			double now = n - DEPTH; // everything dug out
+			for (int y = n; y >= n - DEPTH; y--) {
+				BlockState state = level.getBlockState(pos.set(x, y, z));
+				if (!isGround(state)) continue;
+				now = state.is(Blocks.SNOW) ? y + (state.getValue(SnowLayerBlock.LAYERS) - 1) / 8.0 : y + 1;
+				break;
+			}
+			if (now < old - 0.01) {
+				surfaces.put(col, now);
+				cols.add(x);
+				cols.add(z);
+				cols.add(now);
+			}
+		}
+		dirty.clear();
+		if (cols.isEmpty()) return;
+		JsonObject msg = new JsonObject();
+		msg.addProperty("t", "dig");
+		msg.add("cols", cols);
+		send.accept(msg);
+	}
+
+	private void write(ServerLevel level, JsonObject chunk, int cx, int cz) {
 		JsonArray top = chunk.getAsJsonArray("top");
 
 		BlockState ground = Blocks.DIRT.defaultBlockState();
 		BlockState deep = Blocks.STONE.defaultBlockState();
 		BlockState air = Blocks.AIR.defaultBlockState();
+		BlockState floor = Blocks.BEDROCK.defaultBlockState();
 		BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 		int minY = level.getMinY(), maxY = level.getMaxY();
 
@@ -84,6 +156,11 @@ final class Terrain {
 				var h = top.get(lx + lz * 16);
 				if (h.isJsonNull()) continue; // Valheim had no terrain here (not loaded)
 				double surface = h.getAsDouble();
+				long col = BlockPos.asLong(x, 0, z);
+				Double known = surfaces.get(col);
+				// Unchanged columns are left alone, so rescans never wipe what the player built.
+				if (known != null && Math.abs(known - surface) < 0.02) continue;
+				surfaces.put(col, surface);
 				int n = (int) Math.floor(surface);
 				int layers = (int) Math.round((surface - n) * 8) + 1; // collision = (layers - 1) / 8
 
@@ -91,7 +168,8 @@ final class Terrain {
 					if (y < minY || y > maxY) continue;
 					pos.set(x, y, z);
 					BlockState state;
-					if (y < n - 1) state = deep;
+					if (y == n - DEPTH) state = floor;
+					else if (y < n - 1) state = deep;
 					else if (y < n) state = ground;
 					else if (y == n) state = layers >= 9 ? ground : layers <= 1 ? air
 							: Blocks.SNOW.defaultBlockState().setValue(SnowLayerBlock.LAYERS, layers);

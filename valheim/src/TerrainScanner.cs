@@ -31,13 +31,22 @@ namespace Valcraft
         private static int _solidMask = -1;
         private static IEnumerator _scan;
         private static float _nextRescan;
+        // Chunks whose terrain changed in Valheim (after a dig), rescanned once the heightmap updates.
+        private static readonly Dictionary<long, (int cx, int cz, float at)> TerrainRescans = new Dictionary<long, (int, int, float)>();
+        private const float DigSettleSeconds = 1.5f;
         private static int _rescanIndex;
         public static int ChunksSent => Sent.Count;
         public static int Pending => Queue.Count;
         public static int BoxesLastChunk;
 
+        public static void RequestTerrainRescan(int cx, int cz)
+        {
+            TerrainRescans[Key(cx, cz)] = (cx, cz, Time.time + DigSettleSeconds);
+        }
+
         public static void Reset()
         {
+            TerrainRescans.Clear();
             Sent.Clear();
             Queue.Clear();
             Retries.Clear();
@@ -76,6 +85,13 @@ namespace Valcraft
 
         private static bool StartNext(Link link)
         {
+            foreach (var kv in TerrainRescans)
+            {
+                if (Time.time < kv.Value.at) continue;
+                TerrainRescans.Remove(kv.Key);
+                _scan = Scan(link, kv.Value.cx, kv.Value.cz, withTerrain: true);
+                return true;
+            }
             if (Queue.Count > 0)
             {
                 var (qx, qz) = Queue[0];

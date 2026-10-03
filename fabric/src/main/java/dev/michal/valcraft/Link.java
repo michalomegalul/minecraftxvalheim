@@ -37,7 +37,8 @@ public final class Link {
 		return inbox.poll();
 	}
 
-	public void send(JsonObject msg) {
+	/** Thread-safe: the client and the integrated server thread both send. */
+	public synchronized void send(JsonObject msg) {
 		OutputStream o = out;
 		if (o == null) return;
 		try {

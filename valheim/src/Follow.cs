@@ -61,6 +61,13 @@ namespace Valcraft
         private static readonly AccessTools.FieldRef<Player, float> LookPitch = AccessTools.FieldRefAccess<Player, float>("m_lookPitch");
         private static readonly AccessTools.FieldRef<GameCamera, Camera> MainCamera = AccessTools.FieldRefAccess<GameCamera, Camera>("m_camera");
         private static readonly AccessTools.FieldRef<GameCamera, Camera> SkyCamera = AccessTools.FieldRefAccess<GameCamera, Camera>("m_skyCamera");
+        private static readonly AccessTools.FieldRef<Player, bool> CrouchToggled = AccessTools.FieldRefAccess<Player, bool>("m_crouchToggled");
+        private static readonly AccessTools.FieldRef<Character, bool> Running = AccessTools.FieldRefAccess<Character, bool>("m_running");
+        private static readonly AccessTools.FieldRef<Character, bool> Walking = AccessTools.FieldRefAccess<Character, bool>("m_walking");
+        private static readonly AccessTools.FieldRef<Character, Vector3> CurrentVel = AccessTools.FieldRefAccess<Character, Vector3>("m_currentVel");
+        private static readonly System.Action<Character, float> OnSneaking =
+            AccessTools.MethodDelegate<System.Action<Character, float>>(AccessTools.Method(typeof(Character), "OnSneaking"));
+        private static Vector3 _lastBodyPos;
         private static readonly AccessTools.FieldRef<Character, float> MaxAirAltitude = AccessTools.FieldRefAccess<Character, float>("m_maxAirAltitude");
 
         public static bool Linked;
@@ -169,7 +176,7 @@ namespace Valcraft
         }
 
         /// <summary>Replaces Character.UpdateMotion for the local player while following.</summary>
-        public static bool DriveBody(Character c)
+        public static bool DriveBody(Character c, float dt)
         {
             var p = c as Player;
             if (p == null || p != Player.m_localPlayer || !Active) return true;
@@ -177,14 +184,40 @@ namespace Valcraft
             var s = Current();
             var body = Body(c);
             body.isKinematic = true;
-            body.MovePosition(ToValheim(s));
+            var target = ToValheim(s);
+            body.MovePosition(target);
             var yaw = Quaternion.Euler(0f, Mapping.ToUnityYaw(s.Yaw), 0f);
             body.MoveRotation(yaw);
             LookYaw(c) = yaw;
             LookPitch(p) = s.Pitch;
             // We move the body directly, so Valheim must not see this as falling.
             MaxAirAltitude(c) = body.position.y;
+            ApplyMovementState(p, s, target, dt);
             return false;
+        }
+
+        /// <summary>
+        /// What Character.UpdateWalking would normally do from our movement: crouch (stealth),
+        /// footstep noise that creatures hear, the Sneak skill, and walking/running flags.
+        /// </summary>
+        private static void ApplyMovementState(Player p, McSample s, Vector3 pos, float dt)
+        {
+            Vector3 vel = dt > 0f ? (pos - _lastBodyPos) / dt : Vector3.zero;
+            _lastBodyPos = pos;
+            if (vel.sqrMagnitude > 400f) vel = Vector3.zero; // teleport, not movement
+            CurrentVel(p) = vel;
+
+            bool moving = new Vector2(vel.x, vel.z).magnitude > 0.1f;
+            bool crouch = s.Sneak && !s.Swim;
+            CrouchToggled(p) = crouch;
+            Running(p) = moving && s.Sprint;
+            Walking(p) = moving && !s.Sprint;
+            if (moving && s.Ground)
+            {
+                if (s.Sprint) p.AddNoise(30f);
+                else if (!crouch) p.AddNoise(15f);
+            }
+            if (crouch && moving) OnSneaking(p, dt);
         }
 
         /// <summary>First-person camera at the Minecraft eye position.</summary>
@@ -254,7 +287,12 @@ namespace Valcraft
             _wasActive = active;
             var p = Player.m_localPlayer;
             if (p == null) return;
-            if (!active) Body(p).isKinematic = false;
+            if (!active)
+            {
+                Body(p).isKinematic = false;
+                CrouchToggled(p) = false;
+            }
+            else _lastBodyPos = p.transform.position;
             // Hide our own body in first person but keep its shadow.
             var visual = Visual(p);
             if (visual != null)
@@ -269,7 +307,7 @@ namespace Valcraft
     [HarmonyPatch(typeof(Character), "UpdateMotion")]
     internal static class UpdateMotionPatch
     {
-        private static bool Prefix(Character __instance) => Follow.DriveBody(__instance);
+        private static bool Prefix(Character __instance, float dt) => Follow.DriveBody(__instance, dt);
     }
 
     [HarmonyPatch(typeof(Player), nameof(Player.SetMouseLook))]

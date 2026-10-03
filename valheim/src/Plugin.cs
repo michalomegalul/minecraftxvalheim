@@ -11,7 +11,7 @@ namespace Valcraft
     {
         public const string Guid = "michal.valcraft";
         public const string Name = "Valcraft";
-        public const string Version = "0.5.0";
+        public const string Version = "0.6.0";
 
         internal static ManualLogSource Log;
         private readonly Link _link = new Link();
@@ -67,6 +67,9 @@ namespace Valcraft
                     break;
                 case "player":
                     Follow.OnSample(msg);
+                    break;
+                case "dig":
+                    Dig.OnDig(msg);
                     break;
                 case "ready":
                     Follow.OnReady();

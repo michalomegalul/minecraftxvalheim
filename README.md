@@ -26,7 +26,8 @@ so blocks become real objects in its world and get its lighting, shadows and fog
 | 1a | **Link**: Fabric mod ⇄ Valheim plugin over localhost; walking in MC moves the Valheim player; first-person camera | ✅ works |
 | 1b | **Input**: play through the Valheim window, keys/mouse forwarded to a hidden Minecraft | ✅ works |
 | 2 | **Blocks**: blocks placed/broken in MC appear in Valheim | |
-| 3 | **Ground**: Valheim terrain and objects built into the MC world as blocks, so MC physics collides with Valheim; digging | collision built, needs in-game check |
+| 3 | **Ground**: Valheim terrain and objects built into the MC world, so MC physics collides with Valheim | ✅ works |
+| 3b | **Digging**: pickaxe/shovel/TNT in Minecraft digs Valheim's terrain; sneaking = Valheim stealth | built, needs in-game check |
 | 4 | **Combat**: MC hits damage Valheim creatures; TNT craters | |
 | 5 | **Elytra** and polish | |
 
@@ -87,6 +88,14 @@ How the world gets into Minecraft: Valheim scans a 112 m square around you in 16
   columns. A mixin feeds them into Minecraft's collision for players, so walls keep their real
   thickness and stairs are small steps. The 3×3 chunks around you are rescanned every 3 s, so
   opened doors and felled trees update.
+
+- **Digging**: when ground blocks disappear in Minecraft (pickaxe, shovel, TNT, creepers), the
+  column's highest remaining ground block is re-measured and Valheim lowers its terrain to match
+  with its own terrain system (a registered `valcraft_dig` TerrainOp), so it's saved with the
+  world like a Valheim pickaxe dig. Pits and craters show up in Valheim; tunnelling sideways
+  doesn't change Valheim's surface. Ground is 9 blocks deep with bedrock below (Valheim allows
+  digging 8 m down).
+- **Sneaking** in Minecraft crouches in Valheim: stealth, quieter footsteps, Sneak skill.
 
 Known limits: no water yet; changes further than one chunk away are only picked up when you get
 close.

@@ -6,7 +6,8 @@
 		"FramerateLimitTrackerMixin"
 	],
 	"mixins": [
-		"EntityGetterMixin"
+		"EntityGetterMixin",
+		"LevelMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
